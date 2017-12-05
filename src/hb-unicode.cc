@@ -28,24 +28,10 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#include "hb.hh"
+#include "hb-private.hh"
 
-#include "hb-unicode.hh"
+#include "hb-unicode-private.hh"
 
-
-/**
- * SECTION: hb-unicode
- * @title: hb-unicode
- * @short_description: Unicode character property access
- * @include: hb.h
- *
- * Unicode functions are used to access Unicode character properties.
- * Client can pass its own Unicode functions to HarfBuzz, or access
- * the built-in Unicode functions that come with HarfBuzz.
- *
- * With the Unicode functions, one can query variour Unicode character
- * properties, such as General Category, Script, Combining Class, etc.
- **/
 
 
 /*
@@ -78,7 +64,7 @@ hb_unicode_general_category_nil (hb_unicode_funcs_t *ufuncs    HB_UNUSED,
 
 static hb_codepoint_t
 hb_unicode_mirroring_nil (hb_unicode_funcs_t *ufuncs    HB_UNUSED,
-			  hb_codepoint_t      unicode,
+			  hb_codepoint_t      unicode   HB_UNUSED,
 			  void               *user_data HB_UNUSED)
 {
   return unicode;
@@ -123,23 +109,40 @@ hb_unicode_decompose_compatibility_nil (hb_unicode_funcs_t *ufuncs     HB_UNUSED
 }
 
 
-extern "C" hb_unicode_funcs_t *hb_glib_get_unicode_funcs ();
-extern "C" hb_unicode_funcs_t *hb_icu_get_unicode_funcs ();
-extern "C" hb_unicode_funcs_t *hb_ucdn_get_unicode_funcs ();
+#define HB_UNICODE_FUNCS_IMPLEMENT_SET \
+  HB_UNICODE_FUNCS_IMPLEMENT (glib) \
+  HB_UNICODE_FUNCS_IMPLEMENT (icu) \
+  HB_UNICODE_FUNCS_IMPLEMENT (ucdn) \
+  HB_UNICODE_FUNCS_IMPLEMENT (nil) \
+  /* ^--- Add new callbacks before nil */
+
+#define hb_nil_get_unicode_funcs hb_unicode_funcs_get_empty
+
+/* Prototype them all */
+#define HB_UNICODE_FUNCS_IMPLEMENT(set) \
+extern "C" hb_unicode_funcs_t *hb_##set##_get_unicode_funcs (void);
+HB_UNICODE_FUNCS_IMPLEMENT_SET
+#undef HB_UNICODE_FUNCS_IMPLEMENT
+
 
 hb_unicode_funcs_t *
-hb_unicode_funcs_get_default ()
+hb_unicode_funcs_get_default (void)
 {
+#define HB_UNICODE_FUNCS_IMPLEMENT(set) \
+  return hb_##set##_get_unicode_funcs ();
+
 #if defined(HAVE_UCDN)
-  return hb_ucdn_get_unicode_funcs ();
+  HB_UNICODE_FUNCS_IMPLEMENT(ucdn)
 #elif defined(HAVE_GLIB)
-  return hb_glib_get_unicode_funcs ();
+  HB_UNICODE_FUNCS_IMPLEMENT(glib)
 #elif defined(HAVE_ICU) && defined(HAVE_ICU_BUILTIN)
-  return hb_icu_get_unicode_funcs ();
+  HB_UNICODE_FUNCS_IMPLEMENT(icu)
 #else
 #define HB_UNICODE_FUNCS_NIL 1
-  return hb_unicode_funcs_get_empty ();
+  HB_UNICODE_FUNCS_IMPLEMENT(nil)
 #endif
+
+#undef HB_UNICODE_FUNCS_IMPLEMENT
 }
 
 #if !defined(HB_NO_UNICODE_FUNCS) && defined(HB_UNICODE_FUNCS_NIL)
@@ -151,7 +154,7 @@ hb_unicode_funcs_get_default ()
  * hb_unicode_funcs_create: (Xconstructor)
  * @parent: (nullable):
  *
- *
+ * 
  *
  * Return value: (transfer full):
  *
@@ -182,11 +185,11 @@ hb_unicode_funcs_create (hb_unicode_funcs_t *parent)
 }
 
 
-DEFINE_NULL_INSTANCE (hb_unicode_funcs_t) =
-{
+const hb_unicode_funcs_t _hb_unicode_funcs_nil = {
   HB_OBJECT_HEADER_STATIC,
 
   nullptr, /* parent */
+  true, /* immutable */
   {
 #define HB_UNICODE_FUNC_IMPLEMENT(name) hb_unicode_##name##_nil,
     HB_UNICODE_FUNCS_IMPLEMENT_CALLBACKS
@@ -197,23 +200,23 @@ DEFINE_NULL_INSTANCE (hb_unicode_funcs_t) =
 /**
  * hb_unicode_funcs_get_empty:
  *
- *
+ * 
  *
  * Return value: (transfer full):
  *
  * Since: 0.9.2
  **/
 hb_unicode_funcs_t *
-hb_unicode_funcs_get_empty ()
+hb_unicode_funcs_get_empty (void)
 {
-  return const_cast<hb_unicode_funcs_t *> (&Null(hb_unicode_funcs_t));
+  return const_cast<hb_unicode_funcs_t *> (&_hb_unicode_funcs_nil);
 }
 
 /**
  * hb_unicode_funcs_reference: (skip)
  * @ufuncs: Unicode functions.
  *
- *
+ * 
  *
  * Return value: (transfer full):
  *
@@ -229,7 +232,7 @@ hb_unicode_funcs_reference (hb_unicode_funcs_t *ufuncs)
  * hb_unicode_funcs_destroy: (skip)
  * @ufuncs: Unicode functions.
  *
- *
+ * 
  *
  * Since: 0.9.2
  **/
@@ -251,14 +254,14 @@ hb_unicode_funcs_destroy (hb_unicode_funcs_t *ufuncs)
 /**
  * hb_unicode_funcs_set_user_data: (skip)
  * @ufuncs: Unicode functions.
- * @key:
- * @data:
- * @destroy:
- * @replace:
+ * @key: 
+ * @data: 
+ * @destroy: 
+ * @replace: 
  *
+ * 
  *
- *
- * Return value:
+ * Return value: 
  *
  * Since: 0.9.2
  **/
@@ -275,9 +278,9 @@ hb_unicode_funcs_set_user_data (hb_unicode_funcs_t *ufuncs,
 /**
  * hb_unicode_funcs_get_user_data: (skip)
  * @ufuncs: Unicode functions.
- * @key:
+ * @key: 
  *
- *
+ * 
  *
  * Return value: (transfer none):
  *
@@ -295,42 +298,42 @@ hb_unicode_funcs_get_user_data (hb_unicode_funcs_t *ufuncs,
  * hb_unicode_funcs_make_immutable:
  * @ufuncs: Unicode functions.
  *
- *
+ * 
  *
  * Since: 0.9.2
  **/
 void
 hb_unicode_funcs_make_immutable (hb_unicode_funcs_t *ufuncs)
 {
-  if (hb_object_is_immutable (ufuncs))
+  if (unlikely (hb_object_is_inert (ufuncs)))
     return;
 
-  hb_object_make_immutable (ufuncs);
+  ufuncs->immutable = true;
 }
 
 /**
  * hb_unicode_funcs_is_immutable:
  * @ufuncs: Unicode functions.
  *
+ * 
  *
- *
- * Return value:
+ * Return value: 
  *
  * Since: 0.9.2
  **/
 hb_bool_t
 hb_unicode_funcs_is_immutable (hb_unicode_funcs_t *ufuncs)
 {
-  return hb_object_is_immutable (ufuncs);
+  return ufuncs->immutable;
 }
 
 /**
  * hb_unicode_funcs_get_parent:
  * @ufuncs: Unicode functions.
  *
+ * 
  *
- *
- * Return value:
+ * Return value: 
  *
  * Since: 0.9.2
  **/
@@ -349,7 +352,7 @@ hb_unicode_funcs_set_##name##_func (hb_unicode_funcs_t		   *ufuncs,	\
 				    void			   *user_data,	\
 				    hb_destroy_func_t		    destroy)	\
 {										\
-  if (hb_object_is_immutable (ufuncs))						\
+  if (ufuncs->immutable)							\
     return;									\
 										\
   if (ufuncs->destroy.name)							\
@@ -384,13 +387,13 @@ HB_UNICODE_FUNCS_IMPLEMENT_CALLBACKS_SIMPLE
 /**
  * hb_unicode_compose:
  * @ufuncs: Unicode functions.
- * @a:
- * @b:
+ * @a: 
+ * @b: 
  * @ab: (out):
  *
+ * 
  *
- *
- * Return value:
+ * Return value: 
  *
  * Since: 0.9.2
  **/
@@ -406,13 +409,13 @@ hb_unicode_compose (hb_unicode_funcs_t *ufuncs,
 /**
  * hb_unicode_decompose:
  * @ufuncs: Unicode functions.
- * @ab:
+ * @ab: 
  * @a: (out):
  * @b: (out):
  *
+ * 
  *
- *
- * Return value:
+ * Return value: 
  *
  * Since: 0.9.2
  **/
@@ -428,15 +431,14 @@ hb_unicode_decompose (hb_unicode_funcs_t *ufuncs,
 /**
  * hb_unicode_decompose_compatibility:
  * @ufuncs: Unicode functions.
- * @u:
+ * @u: 
  * @decomposed: (out):
  *
+ * 
  *
- *
- * Return value:
+ * Return value: 
  *
  * Since: 0.9.2
- * Deprecated: 2.0.0
  **/
 unsigned int
 hb_unicode_decompose_compatibility (hb_unicode_funcs_t *ufuncs,
@@ -447,7 +449,7 @@ hb_unicode_decompose_compatibility (hb_unicode_funcs_t *ufuncs,
 }
 
 
-/* See hb-unicode.hh for details. */
+/* See hb-unicode-private.hh for details. */
 const uint8_t
 _hb_modified_combining_class[256] =
 {
@@ -559,19 +561,3 @@ _hb_modified_combining_class[256] =
   241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254,
   255, /* HB_UNICODE_COMBINING_CLASS_INVALID */
 };
-
-
-/*
- * Emoji
- */
-
-#include "hb-unicode-emoji-table.hh"
-
-bool
-_hb_unicode_is_emoji_Extended_Pictographic (hb_codepoint_t cp)
-{
-  return hb_bsearch (&cp, _hb_unicode_emoji_Extended_Pictographic_table,
-		     ARRAY_LENGTH (_hb_unicode_emoji_Extended_Pictographic_table),
-		     sizeof (hb_unicode_range_t),
-		     hb_unicode_range_t::cmp);
-}

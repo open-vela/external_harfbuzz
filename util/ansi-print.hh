@@ -27,7 +27,8 @@
 #ifndef ANSI_PRINT_HH
 #define ANSI_PRINT_HH
 
-#include "hb.hh"
+#include "hb-private.hh"
+#include <hb.h> /* for int types */
 
 void
 ansi_print_image_rgb24 (const uint32_t *data,

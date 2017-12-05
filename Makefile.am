@@ -9,8 +9,7 @@ SUBDIRS = src util test docs
 EXTRA_DIST = \
 	autogen.sh \
 	harfbuzz.doap \
-	README.python.md \
-	README.wine.md \
+	README.python \
 	BUILD.md \
 	RELEASING.md \
 	CMakeLists.txt \

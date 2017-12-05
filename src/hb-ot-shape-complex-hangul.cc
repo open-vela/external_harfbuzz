@@ -24,7 +24,7 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#include "hb-ot-shape-complex.hh"
+#include "hb-ot-shape-complex-private.hh"
 
 
 /* Hangul shaper */
@@ -56,7 +56,7 @@ collect_features_hangul (hb_ot_shape_planner_t *plan)
   hb_ot_map_builder_t *map = &plan->map;
 
   for (unsigned int i = FIRST_HANGUL_FEATURE; i < HANGUL_FEATURE_COUNT; i++)
-    map->add_feature (hangul_features[i]);
+    map->add_feature (hangul_features[i], 1, F_NONE);
 }
 
 static void
@@ -65,11 +65,13 @@ override_features_hangul (hb_ot_shape_planner_t *plan)
   /* Uniscribe does not apply 'calt' for Hangul, and certain fonts
    * (Noto Sans CJK, Source Sans Han, etc) apply all of jamo lookups
    * in calt, which is not desirable. */
-  plan->map.disable_feature (HB_TAG('c','a','l','t'));
+  plan->map.add_feature (HB_TAG('c','a','l','t'), 0, F_GLOBAL);
 }
 
 struct hangul_shape_plan_t
 {
+  ASSERT_POD ();
+
   hb_mask_t mask_array[HANGUL_FEATURE_COUNT];
 };
 
@@ -126,7 +128,7 @@ is_zero_width_char (hb_font_t *font,
 }
 
 static void
-preprocess_text_hangul (const hb_ot_shape_plan_t *plan HB_UNUSED,
+preprocess_text_hangul (const hb_ot_shape_plan_t *plan,
 			hb_buffer_t              *buffer,
 			hb_font_t                *font)
 {
@@ -149,8 +151,8 @@ preprocess_text_hangul (const hb_ot_shape_plan_t *plan HB_UNUSED,
    *   - <V>: U+1160..11A7, U+D7B0..D7C7
    *   - <T>: U+11A8..11FF, U+D7CB..D7FB
    *
-   *   - Only the <L,V> sequences for some of the U+11xx ranges combine.
-   *   - Only <LV,T> sequences for some of the Ts in U+11xx range combine.
+   *   - Only the <L,V> sequences for the 11xx ranges combine.
+   *   - Only <LV,T> sequences for T in U+11A8..11C3 combine.
    *
    * Here is what we want to accomplish in this shaper:
    *
@@ -186,7 +188,7 @@ preprocess_text_hangul (const hb_ot_shape_plan_t *plan HB_UNUSED,
 				    */
   unsigned int count = buffer->len;
 
-  for (buffer->idx = 0; buffer->idx < count && buffer->successful;)
+  for (buffer->idx = 0; buffer->idx < count && !buffer->in_error;)
   {
     hb_codepoint_t u = buffer->cur().codepoint;
 
@@ -267,7 +269,7 @@ preprocess_text_hangul (const hb_ot_shape_plan_t *plan HB_UNUSED,
 	  if (font->has_glyph (s))
 	  {
 	    buffer->replace_glyphs (t ? 3 : 2, 1, &s);
-	    if (unlikely (!buffer->successful))
+	    if (unlikely (buffer->in_error))
 	      return;
 	    end = start + 1;
 	    continue;
@@ -317,7 +319,7 @@ preprocess_text_hangul (const hb_ot_shape_plan_t *plan HB_UNUSED,
 	if (font->has_glyph (new_s))
 	{
 	  buffer->replace_glyphs (2, 1, &new_s);
-	  if (unlikely (!buffer->successful))
+	  if (unlikely (buffer->in_error))
 	    return;
 	  end = start + 1;
 	  continue;
@@ -343,6 +345,13 @@ preprocess_text_hangul (const hb_ot_shape_plan_t *plan HB_UNUSED,
 	{
 	  unsigned int s_len = tindex ? 3 : 2;
 	  buffer->replace_glyphs (1, s_len, decomposed);
+	  if (unlikely (buffer->in_error))
+	    return;
+
+	  /* We decomposed S: apply jamo features to the individual glyphs
+	   * that are now in buffer->out_info.
+	   */
+	  hb_glyph_info_t *info = buffer->out_info;
 
 	  /* If we decomposed an LV because of a non-combining T following,
 	   * we want to include this T in the syllable.
@@ -352,14 +361,6 @@ preprocess_text_hangul (const hb_ot_shape_plan_t *plan HB_UNUSED,
             buffer->next_glyph ();
             s_len++;
           }
-
-	  if (unlikely (!buffer->successful))
-	    return;
-
-	  /* We decomposed S: apply jamo features to the individual glyphs
-	   * that are now in buffer->out_info.
-	   */
-	  hb_glyph_info_t *info = buffer->out_info;
           end = start + s_len;
 
 	  unsigned int i = start;
@@ -367,7 +368,6 @@ preprocess_text_hangul (const hb_ot_shape_plan_t *plan HB_UNUSED,
 	  info[i++].hangul_shaping_feature() = VJMO;
 	  if (i < end)
 	    info[i++].hangul_shaping_feature() = TJMO;
-
 	  if (buffer->cluster_level == HB_BUFFER_CLUSTER_LEVEL_MONOTONE_GRAPHEMES)
 	    buffer->merge_out_clusters (start, end);
 	  continue;
@@ -424,7 +424,7 @@ const hb_ot_complex_shaper_t _hb_ot_complex_shaper_hangul =
   nullptr, /* decompose */
   nullptr, /* compose */
   setup_masks_hangul,
-  HB_TAG_NONE, /* gpos_tag */
+  nullptr, /* disable_otl */
   nullptr, /* reorder_marks */
   HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
   false, /* fallback_position */

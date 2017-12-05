@@ -32,6 +32,7 @@
 static void
 test_types_int (void)
 {
+  /* We already ASSERT_STATIC these in hb-private.h, but anyway */
   g_assert_cmpint (sizeof (int8_t), ==, 1);
   g_assert_cmpint (sizeof (uint8_t), ==, 1);
   g_assert_cmpint (sizeof (int16_t), ==, 2);
@@ -172,7 +173,6 @@ test_types_script (void)
 
   g_assert_cmpint (hb_script_get_horizontal_direction (HB_SCRIPT_LATIN), ==, HB_DIRECTION_LTR);
   g_assert_cmpint (hb_script_get_horizontal_direction (HB_SCRIPT_ARABIC), ==, HB_DIRECTION_RTL);
-  g_assert_cmpint (hb_script_get_horizontal_direction (HB_SCRIPT_OLD_ITALIC), ==, HB_DIRECTION_INVALID);
   g_assert_cmpint (hb_script_get_horizontal_direction (hb_script_from_iso15924_tag (wWyZ)), ==, HB_DIRECTION_LTR);
 }
 

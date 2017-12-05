@@ -1,13 +1,8 @@
 #!/usr/bin/env python
 
-from __future__ import print_function, division, absolute_import
-
+from __future__ import print_function
 import sys, os, re, difflib, unicodedata, errno, cgi
 from itertools import *
-try:
-	import unicodedata2 as unicodedata
-except Exception:
-	pass
 
 diff_symbols = "-+=*&^%$#@!~/"
 diff_colors = ['red', 'green', 'blue']
@@ -60,10 +55,10 @@ try:
 						yield 0x10000 + (high_surrogate - 0xD800) * 0x400 + (cp - 0xDC00)
 						high_surrogate = None
 					else:
-						yield 0xFFFD
+						yield 0xFFFC
 				else:
 					if high_surrogate:
-						yield 0xFFFD
+						yield 0xFFFC
 						high_surrogate = None
 					if 0xD800 <= cp <= 0xDBFF:
 						high_surrogate = cp
@@ -71,7 +66,7 @@ try:
 						yield cp
 						high_surrogate = None
 			if high_surrogate:
-				yield 0xFFFD
+				yield 0xFFFC
 
 except NameError:
 	unichr = chr
@@ -298,6 +293,32 @@ class DiffSinks:
 		total = passed + failed
 		print ("%d out of %d tests passed.  %d failed (%g%%)" % (passed, total, failed, 100. * failed / total))
 
+	@staticmethod
+	def print_ngrams (f, ns=(1,2,3)):
+		gens = tuple (Ngram.generator (n) for n in ns)
+		allstats = Stats ()
+		allgrams = {}
+		for key, lines in DiffHelpers.separate_test_cases (f):
+			test = Test (lines)
+			allstats.add (test)
+
+			for gen in gens:
+				for ngram in gen (test.unicodes):
+					if ngram not in allgrams:
+						allgrams[ngram] = Stats ()
+					allgrams[ngram].add (test)
+
+		importantgrams = {}
+		for ngram, stats in allgrams.iteritems ():
+			if stats.failed.count >= 30: # for statistical reasons
+				importantgrams[ngram] = stats
+		allgrams = importantgrams
+		del importantgrams
+
+		for ngram, stats in allgrams.iteritems ():
+			print ("zscore: %9f failed: %6d passed: %6d ngram: <%s>" % (stats.zscore (allstats), stats.failed.count, stats.passed.count, ','.join ("U+%04X" % u for u in ngram)))
+
+
 
 class Test:
 
@@ -518,7 +539,7 @@ class FileHelpers:
 	def open_file_or_stdin (f):
 		if f == '-':
 			return sys.stdin
-		return open (f)
+		return file (f)
 
 
 class Manifest:
@@ -537,7 +558,7 @@ class Manifest:
 		if os.path.isdir (s):
 
 			try:
-				m = open (os.path.join (s, "MANIFEST"))
+				m = file (os.path.join (s, "MANIFEST"))
 				items = [x.strip () for x in m.readlines ()]
 				for f in items:
 					for p in Manifest.read (os.path.join (s, f)):

@@ -27,7 +27,8 @@
 #ifndef HB_OT_POST_TABLE_HH
 #define HB_OT_POST_TABLE_HH
 
-#include "hb-open-type.hh"
+#include "hb-open-type-private.hh"
+#include "hb-dsalgs.hh"
 
 #define HB_STRING_ARRAY_NAME format1_names
 #define HB_STRING_ARRAY_LIST "hb-ot-post-macroman.hh"
@@ -37,118 +38,113 @@
 
 #define NUM_FORMAT1_NAMES 258
 
+namespace OT {
+
+
 /*
  * post -- PostScript
- * https://docs.microsoft.com/en-us/typography/opentype/spec/post
  */
+
 #define HB_OT_TAG_post HB_TAG('p','o','s','t')
-
-
-namespace OT {
 
 
 struct postV2Tail
 {
-  friend struct post;
-
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (glyphNameIndex.sanitize (c));
   }
 
-  protected:
-  ArrayOf<HBUINT16>	glyphNameIndex;	/* This is not an offset, but is the
+  ArrayOf<UINT16>glyphNameIndex;	/* This is not an offset, but is the
 					 * ordinal number of the glyph in 'post'
 					 * string tables. */
-/*UnsizedArrayOf<HBUINT8>
-			namesX;*/	/* Glyph names with length bytes [variable]
+  UINT8		namesX[VAR];		/* Glyph names with length bytes [variable]
 					 * (a Pascal string). */
 
-  public:
-  DEFINE_SIZE_ARRAY (2, glyphNameIndex);
+  DEFINE_SIZE_ARRAY2 (2, glyphNameIndex, namesX);
 };
 
 struct post
 {
-  enum { tableTag = HB_OT_TAG_post };
+  static const hb_tag_t tableTag = HB_OT_TAG_post;
 
-  bool subset (hb_subset_plan_t *plan) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
-    unsigned int post_prime_length;
-    hb_blob_t *post_blob = hb_sanitize_context_t ().reference_table<post>(plan->source);
-    hb_blob_t *post_prime_blob = hb_blob_create_sub_blob (post_blob, 0, post::min_size);
-    post *post_prime = (post *) hb_blob_get_data_writable (post_prime_blob, &post_prime_length);
-    hb_blob_destroy (post_blob);
-
-    if (unlikely (!post_prime || post_prime_length != post::min_size))
+    TRACE_SANITIZE (this);
+    if (unlikely (!c->check_struct (this)))
+      return_trace (false);
+    if (version.to_int () == 0x00020000)
     {
-      hb_blob_destroy (post_prime_blob);
-      DEBUG_MSG(SUBSET, nullptr, "Invalid source post table with length %d.", post_prime_length);
-      return false;
+      const postV2Tail &v2 = StructAfter<postV2Tail> (*this);
+      return_trace (v2.sanitize (c));
     }
-
-    post_prime->version.major.set (3); // Version 3 does not have any glyph names.
-    bool result = plan->add_table (HB_OT_TAG_post, post_prime_blob);
-    hb_blob_destroy (post_prime_blob);
-
-    return result;
+    return_trace (true);
   }
 
   struct accelerator_t
   {
-    void init (hb_face_t *face)
+    inline void init (hb_face_t *face)
     {
-      index_to_offset.init ();
-
-      table = hb_sanitize_context_t ().reference_table<post> (face);
-      unsigned int table_length = table.get_length ();
+      blob = Sanitizer<post>::sanitize (face->reference_table (HB_OT_TAG_post));
+      const post *table = Sanitizer<post>::lock_instance (blob);
+      unsigned int table_length = hb_blob_get_length (blob);
 
       version = table->version.to_int ();
-      if (version != 0x00020000) return;
+      index_to_offset.init ();
+      if (version != 0x00020000)
+        return;
 
-      const postV2Tail &v2 = table->v2X;
+      const postV2Tail &v2 = StructAfter<postV2Tail> (*table);
 
       glyphNameIndex = &v2.glyphNameIndex;
       pool = &StructAfter<uint8_t> (v2.glyphNameIndex);
 
-      const uint8_t *end = (const uint8_t *) (const void *) table + table_length;
-      for (const uint8_t *data = pool;
-	   index_to_offset.length < 65535 && data < end && data + *data < end;
-	   data += 1 + *data)
-	index_to_offset.push (data - pool);
+      const uint8_t *end = (uint8_t *) table + table_length;
+      for (const uint8_t *data = pool; data < end && data + *data <= end; data += 1 + *data)
+      {
+	uint32_t *offset = index_to_offset.push ();
+	if (unlikely (!offset))
+	  break;
+	*offset = data - pool;
+      }
     }
-    void fini ()
+    inline void fini (void)
     {
-      index_to_offset.fini ();
-      free (gids_sorted_by_name.get ());
-      table.destroy ();
+      index_to_offset.finish ();
+      free (gids_sorted_by_name);
     }
 
-    bool get_glyph_name (hb_codepoint_t glyph,
-			 char *buf, unsigned int buf_len) const
+    inline bool get_glyph_name (hb_codepoint_t glyph,
+				char *buf, unsigned int buf_len) const
     {
-      hb_bytes_t s = find_glyph_name (glyph);
-      if (!s.length) return false;
-      if (!buf_len) return true;
-      unsigned int len = MIN (buf_len - 1, s.length);
-      strncpy (buf, s.arrayZ, len);
-      buf[len] = '\0';
+      hb_string_t s = find_glyph_name (glyph);
+      if (!s.len)
+        return false;
+      if (!buf_len)
+	return true;
+      if (buf_len <= s.len) /* What to do with truncation? Returning false for now. */
+        return false;
+      strncpy (buf, s.bytes, s.len);
+      buf[s.len] = '\0';
       return true;
     }
 
-    bool get_glyph_from_name (const char *name, int len,
-			      hb_codepoint_t *glyph) const
+    inline bool get_glyph_from_name (const char *name, int len,
+				     hb_codepoint_t *glyph) const
     {
       unsigned int count = get_glyph_count ();
-      if (unlikely (!count)) return false;
+      if (unlikely (!count))
+        return false;
 
-      if (len < 0) len = strlen (name);
+      if (len < 0)
+	len = strlen (name);
 
-      if (unlikely (!len)) return false;
+      if (unlikely (!len))
+	return false;
 
     retry:
-      uint16_t *gids = gids_sorted_by_name.get ();
+      uint16_t *gids = (uint16_t *) hb_atomic_ptr_get (&gids_sorted_by_name);
 
       if (unlikely (!gids))
       {
@@ -160,16 +156,14 @@ struct post
 	  gids[i] = i;
 	hb_sort_r (gids, count, sizeof (gids[0]), cmp_gids, (void *) this);
 
-	if (unlikely (!gids_sorted_by_name.cmpexch (nullptr, gids)))
-	{
+	if (!hb_atomic_ptr_cmpexch (&gids_sorted_by_name, nullptr, gids)) {
 	  free (gids);
 	  goto retry;
 	}
       }
 
-      hb_bytes_t st (name, len);
-      const uint16_t *gid = (const uint16_t *) hb_bsearch_r (hb_addressof (st), gids, count,
-							     sizeof (gids[0]), cmp_key, (void *) this);
+      hb_string_t st (name, len);
+      const uint16_t *gid = (const uint16_t *) hb_bsearch_r (&st, gids, count, sizeof (gids[0]), cmp_key, (void *) this);
       if (gid)
       {
 	*glyph = *gid;
@@ -181,18 +175,18 @@ struct post
 
     protected:
 
-    unsigned int get_glyph_count () const
+    inline unsigned int get_glyph_count (void) const
     {
       if (version == 0x00010000)
-	return NUM_FORMAT1_NAMES;
+        return NUM_FORMAT1_NAMES;
 
       if (version == 0x00020000)
-	return glyphNameIndex->len;
+        return glyphNameIndex->len;
 
       return 0;
     }
 
-    static int cmp_gids (const void *pa, const void *pb, void *arg)
+    static inline int cmp_gids (const void *pa, const void *pb, void *arg)
     {
       const accelerator_t *thiz = (const accelerator_t *) arg;
       uint16_t a = * (const uint16_t *) pa;
@@ -200,60 +194,51 @@ struct post
       return thiz->find_glyph_name (b).cmp (thiz->find_glyph_name (a));
     }
 
-    static int cmp_key (const void *pk, const void *po, void *arg)
+    static inline int cmp_key (const void *pk, const void *po, void *arg)
     {
       const accelerator_t *thiz = (const accelerator_t *) arg;
-      const hb_bytes_t *key = (const hb_bytes_t *) pk;
+      const hb_string_t *key = (const hb_string_t *) pk;
       uint16_t o = * (const uint16_t *) po;
       return thiz->find_glyph_name (o).cmp (*key);
     }
 
-    hb_bytes_t find_glyph_name (hb_codepoint_t glyph) const
+    inline hb_string_t find_glyph_name (hb_codepoint_t glyph) const
     {
       if (version == 0x00010000)
       {
 	if (glyph >= NUM_FORMAT1_NAMES)
-	  return hb_bytes_t ();
+	  return hb_string_t ();
 
 	return format1_names (glyph);
       }
 
       if (version != 0x00020000 || glyph >= glyphNameIndex->len)
-	return hb_bytes_t ();
+	return hb_string_t ();
 
-      unsigned int index = glyphNameIndex->arrayZ[glyph];
+      unsigned int index = glyphNameIndex->array[glyph];
       if (index < NUM_FORMAT1_NAMES)
 	return format1_names (index);
       index -= NUM_FORMAT1_NAMES;
 
-      if (index >= index_to_offset.length)
-	return hb_bytes_t ();
-      unsigned int offset = index_to_offset[index];
+      if (index >= index_to_offset.len)
+	return hb_string_t ();
+      unsigned int offset = index_to_offset.array[index];
 
       const uint8_t *data = pool + offset;
       unsigned int name_length = *data;
       data++;
 
-      return hb_bytes_t ((const char *) data, name_length);
+      return hb_string_t ((const char *) data, name_length);
     }
 
     private:
-    hb_blob_ptr_t<post> table;
+    hb_blob_t *blob;
     uint32_t version;
-    const ArrayOf<HBUINT16> *glyphNameIndex;
-    hb_vector_t<uint32_t> index_to_offset;
+    const ArrayOf<UINT16> *glyphNameIndex;
+    hb_prealloced_array_t<uint32_t, 1> index_to_offset;
     const uint8_t *pool;
-    hb_atomic_ptr_t<uint16_t *> gids_sorted_by_name;
+    mutable uint16_t *gids_sorted_by_name;
   };
-
-  bool sanitize (hb_sanitize_context_t *c) const
-  {
-    TRACE_SANITIZE (this);
-    return_trace (likely (c->check_struct (this) &&
-			  (version.to_int () == 0x00010000 ||
-			   (version.to_int () == 0x00020000 && v2X.sanitize (c)) ||
-			   version.to_int () == 0x00030000)));
-  }
 
   public:
   FixedVersion<>version;		/* 0x00010000 for version 1.0
@@ -276,22 +261,20 @@ struct post
 					 * from the value of this field. */
   FWORD		underlineThickness;	/* Suggested values for the underline
 					   thickness. */
-  HBUINT32	isFixedPitch;		/* Set to 0 if the font is proportionally
+  UINT32		isFixedPitch;		/* Set to 0 if the font is proportionally
 					 * spaced, non-zero if the font is not
 					 * proportionally spaced (i.e. monospaced). */
-  HBUINT32	minMemType42;		/* Minimum memory usage when an OpenType font
+  UINT32		minMemType42;		/* Minimum memory usage when an OpenType font
 					 * is downloaded. */
-  HBUINT32	maxMemType42;		/* Maximum memory usage when an OpenType font
+  UINT32		maxMemType42;		/* Maximum memory usage when an OpenType font
 					 * is downloaded. */
-  HBUINT32	minMemType1;		/* Minimum memory usage when an OpenType font
+  UINT32		minMemType1;		/* Minimum memory usage when an OpenType font
 					 * is downloaded as a Type 1 font. */
-  HBUINT32	maxMemType1;		/* Maximum memory usage when an OpenType font
+  UINT32		maxMemType1;		/* Maximum memory usage when an OpenType font
 					 * is downloaded as a Type 1 font. */
-  postV2Tail	v2X;
-  DEFINE_SIZE_MIN (32);
+/*postV2Tail	v2[VAR];*/
+  DEFINE_SIZE_STATIC (32);
 };
-
-struct post_accelerator_t : post::accelerator_t {};
 
 } /* namespace OT */
 
