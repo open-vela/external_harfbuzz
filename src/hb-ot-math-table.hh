@@ -27,8 +27,8 @@
 #ifndef HB_OT_MATH_TABLE_HH
 #define HB_OT_MATH_TABLE_HH
 
-#include "hb-open-type.hh"
-#include "hb-ot-layout-common.hh"
+#include "hb-open-type-private.hh"
+#include "hb-ot-layout-common-private.hh"
 #include "hb-ot-math.h"
 
 namespace OT {
@@ -36,21 +36,21 @@ namespace OT {
 
 struct MathValueRecord
 {
-  hb_position_t get_x_value (hb_font_t *font, const void *base) const
+  inline hb_position_t get_x_value (hb_font_t *font, const void *base) const
   { return font->em_scale_x (value) + (base+deviceTable).get_x_delta (font); }
-  hb_position_t get_y_value (hb_font_t *font, const void *base) const
+  inline hb_position_t get_y_value (hb_font_t *font, const void *base) const
   { return font->em_scale_y (value) + (base+deviceTable).get_y_delta (font); }
 
-  bool sanitize (hb_sanitize_context_t *c, const void *base) const
+  inline bool sanitize (hb_sanitize_context_t *c, const void *base) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) && deviceTable.sanitize (c, base));
   }
 
   protected:
-  HBINT16			value;		/* The X or Y value in design units */
+  INT16			value;		/* The X or Y value in design units */
   OffsetTo<Device>	deviceTable;	/* Offset to the device table - from the
-					 * beginning of parent table.  May be NULL.
+					 * beginning of parent table. May be nullptr.
 					 * Suggested format for device table is 1. */
 
   public:
@@ -59,7 +59,7 @@ struct MathValueRecord
 
 struct MathConstants
 {
-  bool sanitize_math_value_records (hb_sanitize_context_t *c) const
+  inline bool sanitize_math_value_records (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
 
@@ -71,13 +71,13 @@ struct MathConstants
     return_trace (true);
   }
 
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    return_trace (c->check_struct (this) && sanitize_math_value_records (c));
+    return_trace (c->check_struct (this) && sanitize_math_value_records(c));
   }
 
-  hb_position_t get_value (hb_ot_math_constant_t constant,
+  inline hb_position_t get_value (hb_ot_math_constant_t constant,
 				  hb_font_t *font) const
   {
     switch (constant) {
@@ -94,7 +94,7 @@ struct MathConstants
     case HB_OT_MATH_CONSTANT_RADICAL_KERN_BEFORE_DEGREE:
     case HB_OT_MATH_CONSTANT_SKEWED_FRACTION_HORIZONTAL_GAP:
     case HB_OT_MATH_CONSTANT_SPACE_AFTER_SCRIPT:
-      return mathValueRecords[constant - HB_OT_MATH_CONSTANT_MATH_LEADING].get_x_value (font, this);
+      return mathValueRecords[constant - HB_OT_MATH_CONSTANT_MATH_LEADING].get_x_value(font, this);
 
     case HB_OT_MATH_CONSTANT_ACCENT_BASE_HEIGHT:
     case HB_OT_MATH_CONSTANT_AXIS_HEIGHT:
@@ -143,7 +143,7 @@ struct MathConstants
     case HB_OT_MATH_CONSTANT_UNDERBAR_VERTICAL_GAP:
     case HB_OT_MATH_CONSTANT_UPPER_LIMIT_BASELINE_RISE_MIN:
     case HB_OT_MATH_CONSTANT_UPPER_LIMIT_GAP_MIN:
-      return mathValueRecords[constant - HB_OT_MATH_CONSTANT_MATH_LEADING].get_y_value (font, this);
+      return mathValueRecords[constant - HB_OT_MATH_CONSTANT_MATH_LEADING].get_y_value(font, this);
 
     case HB_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT:
       return radicalDegreeBottomRaisePercent;
@@ -154,10 +154,10 @@ struct MathConstants
   }
 
   protected:
-  HBINT16 percentScaleDown[2];
-  HBUINT16 minHeight[2];
+  INT16 percentScaleDown[2];
+  UINT16 minHeight[2];
   MathValueRecord mathValueRecords[51];
-  HBINT16 radicalDegreeBottomRaisePercent;
+  INT16 radicalDegreeBottomRaisePercent;
 
   public:
   DEFINE_SIZE_STATIC (214);
@@ -165,7 +165,7 @@ struct MathConstants
 
 struct MathItalicsCorrectionInfo
 {
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
@@ -173,8 +173,8 @@ struct MathItalicsCorrectionInfo
 		  italicsCorrection.sanitize (c, this));
   }
 
-  hb_position_t get_value (hb_codepoint_t glyph,
-			   hb_font_t *font) const
+  inline hb_position_t get_value (hb_codepoint_t glyph,
+				  hb_font_t *font) const
   {
     unsigned int index = (this+coverage).get_coverage (glyph);
     return italicsCorrection[index].get_x_value (font, this);
@@ -196,7 +196,7 @@ struct MathItalicsCorrectionInfo
 
 struct MathTopAccentAttachment
 {
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
@@ -204,13 +204,13 @@ struct MathTopAccentAttachment
 		  topAccentAttachment.sanitize (c, this));
   }
 
-  hb_position_t get_value (hb_codepoint_t glyph,
-			   hb_font_t *font) const
+  inline hb_position_t get_value (hb_codepoint_t glyph,
+				  hb_font_t *font) const
   {
     unsigned int index = (this+topAccentCoverage).get_coverage (glyph);
     if (index == NOT_COVERED)
       return font->get_glyph_h_advance (glyph) / 2;
-    return topAccentAttachment[index].get_x_value (font, this);
+    return topAccentAttachment[index].get_x_value(font, this);
   }
 
   protected:
@@ -229,27 +229,29 @@ struct MathTopAccentAttachment
 
 struct MathKern
 {
-  bool sanitize_math_value_records (hb_sanitize_context_t *c) const
+  inline bool sanitize_math_value_records (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     unsigned int count = 2 * heightCount + 1;
     for (unsigned int i = 0; i < count; i++)
-      if (!mathValueRecordsZ.arrayZ[i].sanitize (c, this)) return_trace (false);
+      if (!mathValueRecords[i].sanitize (c, this)) return_trace (false);
     return_trace (true);
   }
 
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
-		  c->check_array (mathValueRecordsZ.arrayZ, 2 * heightCount + 1) &&
+		  c->check_array (mathValueRecords,
+				  mathValueRecords[0].static_size,
+				  2 * heightCount + 1) &&
 		  sanitize_math_value_records (c));
   }
 
-  hb_position_t get_value (hb_position_t correction_height, hb_font_t *font) const
+  inline hb_position_t get_value (hb_position_t correction_height, hb_font_t *font) const
   {
-    const MathValueRecord* correctionHeight = mathValueRecordsZ.arrayZ;
-    const MathValueRecord* kernValue = mathValueRecordsZ.arrayZ + heightCount;
+    const MathValueRecord* correctionHeight = mathValueRecords;
+    const MathValueRecord* kernValue = mathValueRecords + heightCount;
     int sign = font->y_scale < 0 ? -1 : +1;
 
     /* The description of the MathKern table is a ambiguous, but interpreting
@@ -265,7 +267,7 @@ struct MathKern
     while (count > 0)
     {
       unsigned int half = count / 2;
-      hb_position_t height = correctionHeight[i + half].get_y_value (font, this);
+      hb_position_t height = correctionHeight[i + half].get_y_value(font, this);
       if (sign * height < sign * correction_height)
       {
 	i += half + 1;
@@ -273,28 +275,27 @@ struct MathKern
       } else
 	count = half;
     }
-    return kernValue[i].get_x_value (font, this);
+    return kernValue[i].get_x_value(font, this);
   }
 
   protected:
-  HBUINT16	heightCount;
-  UnsizedArrayOf<MathValueRecord>
-		mathValueRecordsZ;	/* Array of correction heights at
-					 * which the kern value changes.
-					 * Sorted by the height value in
-					 * design units (heightCount entries),
-					 * Followed by:
-					 * Array of kern values corresponding
-					 * to heights. (heightCount+1 entries).
-					 */
+  UINT16	  heightCount;
+  MathValueRecord mathValueRecords[VAR]; /* Array of correction heights at
+					  * which the kern value changes.
+					  * Sorted by the height value in
+					  * design units (heightCount entries),
+					  * Followed by:
+					  * Array of kern values corresponding
+					  * to heights. (heightCount+1 entries).
+					  */
 
   public:
-  DEFINE_SIZE_ARRAY (2, mathValueRecordsZ);
+  DEFINE_SIZE_ARRAY (2, mathValueRecords);
 };
 
 struct MathKernInfoRecord
 {
-  bool sanitize (hb_sanitize_context_t *c, const void *base) const
+  inline bool sanitize (hb_sanitize_context_t *c, const void *base) const
   {
     TRACE_SANITIZE (this);
 
@@ -306,10 +307,10 @@ struct MathKernInfoRecord
     return_trace (true);
   }
 
-  hb_position_t get_kerning (hb_ot_math_kern_t kern,
-			     hb_position_t correction_height,
-			     hb_font_t *font,
-			     const void *base) const
+  inline hb_position_t get_kerning (hb_ot_math_kern_t kern,
+				    hb_position_t correction_height,
+				    hb_font_t *font,
+				    const void *base) const
   {
     unsigned int idx = kern;
     if (unlikely (idx >= ARRAY_LENGTH (mathKern))) return 0;
@@ -318,7 +319,7 @@ struct MathKernInfoRecord
 
   protected:
   /* Offset to MathKern table for each corner -
-   * from the beginning of MathKernInfo table.  May be NULL. */
+   * from the beginning of MathKernInfo table. May be nullptr. */
   OffsetTo<MathKern> mathKern[4];
 
   public:
@@ -327,7 +328,7 @@ struct MathKernInfoRecord
 
 struct MathKernInfo
 {
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
@@ -335,10 +336,10 @@ struct MathKernInfo
 		  mathKernInfoRecords.sanitize (c, this));
   }
 
-  hb_position_t get_kerning (hb_codepoint_t glyph,
-			     hb_ot_math_kern_t kern,
-			     hb_position_t correction_height,
-			     hb_font_t *font) const
+  inline hb_position_t get_kerning (hb_codepoint_t glyph,
+				    hb_ot_math_kern_t kern,
+				    hb_position_t correction_height,
+				    hb_font_t *font) const
   {
     unsigned int index = (this+mathKernCoverage).get_coverage (glyph);
     return mathKernInfoRecords[index].get_kerning (kern, correction_height, font, this);
@@ -361,31 +362,31 @@ struct MathKernInfo
 
 struct MathGlyphInfo
 {
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
 		  mathItalicsCorrectionInfo.sanitize (c, this) &&
 		  mathTopAccentAttachment.sanitize (c, this) &&
 		  extendedShapeCoverage.sanitize (c, this) &&
-		  mathKernInfo.sanitize (c, this));
+		  mathKernInfo.sanitize(c, this));
   }
 
-  hb_position_t
+  inline hb_position_t
   get_italics_correction (hb_codepoint_t  glyph, hb_font_t *font) const
   { return (this+mathItalicsCorrectionInfo).get_value (glyph, font); }
 
-  hb_position_t
+  inline hb_position_t
   get_top_accent_attachment (hb_codepoint_t  glyph, hb_font_t *font) const
   { return (this+mathTopAccentAttachment).get_value (glyph, font); }
 
-  bool is_extended_shape (hb_codepoint_t glyph) const
+  inline bool is_extended_shape (hb_codepoint_t glyph) const
   { return (this+extendedShapeCoverage).get_coverage (glyph) != NOT_COVERED; }
 
-  hb_position_t get_kerning (hb_codepoint_t glyph,
-			     hb_ot_math_kern_t kern,
-			     hb_position_t correction_height,
-			     hb_font_t *font) const
+  inline hb_position_t get_kerning (hb_codepoint_t glyph,
+				    hb_ot_math_kern_t kern,
+				    hb_position_t correction_height,
+				    hb_font_t *font) const
   { return (this+mathKernInfo).get_kerning (glyph, kern, correction_height, font); }
 
   protected:
@@ -401,7 +402,7 @@ struct MathGlyphInfo
    * from the beginning of MathGlyphInfo table. When the left or right glyph of
    * a box is an extended shape variant, the (ink) box (and not the default
    * position defined by values in MathConstants table) should be used for
-   * vertical positioning purposes.  May be NULL.. */
+   * vertical positioning purposes. May be nullptr.. */
   OffsetTo<Coverage> extendedShapeCoverage;
 
    /* Offset to MathKernInfo table -
@@ -416,7 +417,7 @@ struct MathGlyphVariantRecord
 {
   friend struct MathGlyphConstruction;
 
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));
@@ -424,15 +425,15 @@ struct MathGlyphVariantRecord
 
   protected:
   GlyphID variantGlyph;       /* Glyph ID for the variant. */
-  HBUINT16  advanceMeasurement; /* Advance width/height, in design units, of the
-				 * variant, in the direction of requested
-				 * glyph extension. */
+  UINT16  advanceMeasurement; /* Advance width/height, in design units, of the
+			       * variant, in the direction of requested
+			       * glyph extension. */
 
   public:
   DEFINE_SIZE_STATIC (4);
 };
 
-struct PartFlags : HBUINT16
+struct PartFlags : UINT16
 {
   enum Flags {
     Extender	= 0x0001u, /* If set, the part can be skipped or repeated. */
@@ -446,15 +447,15 @@ struct PartFlags : HBUINT16
 
 struct MathGlyphPartRecord
 {
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));
   }
 
-  void extract (hb_ot_math_glyph_part_t &out,
-		int scale,
-		hb_font_t *font) const
+  inline void extract (hb_ot_math_glyph_part_t &out,
+		       int scale,
+		       hb_font_t *font) const
   {
     out.glyph			= glyph;
 
@@ -472,15 +473,15 @@ struct MathGlyphPartRecord
 
   protected:
   GlyphID   glyph;		  /* Glyph ID for the part. */
-  HBUINT16    startConnectorLength; /* Advance width/ height of the straight bar
+  UINT16    startConnectorLength; /* Advance width/ height of the straight bar
 				   * connector material, in design units, is at
 				   * the beginning of the glyph, in the
 				   * direction of the extension. */
-  HBUINT16    endConnectorLength;   /* Advance width/ height of the straight bar
+  UINT16    endConnectorLength;   /* Advance width/ height of the straight bar
 				   * connector material, in design units, is at
 				   * the end of the glyph, in the direction of
 				   * the extension. */
-  HBUINT16    fullAdvance;	  /* Full advance width/height for this part,
+  UINT16    fullAdvance;	  /* Full advance width/height for this part,
 				   * in the direction of the extension.
 				   * In design units. */
   PartFlags partFlags;		  /* Part qualifiers. */
@@ -491,26 +492,27 @@ struct MathGlyphPartRecord
 
 struct MathGlyphAssembly
 {
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
-		  italicsCorrection.sanitize (c, this) &&
-		  partRecords.sanitize (c));
+		  italicsCorrection.sanitize(c, this) &&
+		  partRecords.sanitize(c));
   }
 
-  unsigned int get_parts (hb_direction_t direction,
-			  hb_font_t *font,
-			  unsigned int start_offset,
-			  unsigned int *parts_count, /* IN/OUT */
-			  hb_ot_math_glyph_part_t *parts /* OUT */,
-			  hb_position_t *italics_correction /* OUT */) const
+  inline unsigned int get_parts (hb_direction_t direction,
+				 hb_font_t *font,
+				 unsigned int start_offset,
+				 unsigned int *parts_count, /* IN/OUT */
+				 hb_ot_math_glyph_part_t *parts /* OUT */,
+				 hb_position_t *italics_correction /* OUT */) const
   {
     if (parts_count)
     {
       int scale = font->dir_scale (direction);
-      hb_array_t<const MathGlyphPartRecord> arr = partRecords.sub_array (start_offset, parts_count);
-      unsigned int count = arr.length;
+      const MathGlyphPartRecord *arr =
+	    partRecords.sub_array (start_offset, parts_count);
+      unsigned int count = *parts_count;
       for (unsigned int i = 0; i < count; i++)
 	arr[i].extract (parts[i], scale, font);
     }
@@ -535,27 +537,29 @@ struct MathGlyphAssembly
 
 struct MathGlyphConstruction
 {
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
-		  glyphAssembly.sanitize (c, this) &&
-		  mathGlyphVariantRecord.sanitize (c));
+		  glyphAssembly.sanitize(c, this) &&
+		  mathGlyphVariantRecord.sanitize(c));
   }
 
-  const MathGlyphAssembly &get_assembly () const { return this+glyphAssembly; }
+  inline const MathGlyphAssembly &get_assembly (void) const
+  { return this+glyphAssembly; }
 
-  unsigned int get_variants (hb_direction_t direction,
-			     hb_font_t *font,
-			     unsigned int start_offset,
-			     unsigned int *variants_count, /* IN/OUT */
-			     hb_ot_math_glyph_variant_t *variants /* OUT */) const
+  inline unsigned int get_variants (hb_direction_t direction,
+				    hb_font_t *font,
+				    unsigned int start_offset,
+				    unsigned int *variants_count, /* IN/OUT */
+				    hb_ot_math_glyph_variant_t *variants /* OUT */) const
   {
     if (variants_count)
     {
       int scale = font->dir_scale (direction);
-      hb_array_t<const MathGlyphVariantRecord> arr = mathGlyphVariantRecord.sub_array (start_offset, variants_count);
-      unsigned int count = arr.length;
+      const MathGlyphVariantRecord *arr =
+	    mathGlyphVariantRecord.sub_array (start_offset, variants_count);
+      unsigned int count = *variants_count;
       for (unsigned int i = 0; i < count; i++)
       {
 	variants[i].glyph = arr[i].variantGlyph;
@@ -567,7 +571,7 @@ struct MathGlyphConstruction
 
   protected:
   /* Offset to MathGlyphAssembly table for this shape - from the beginning of
-     MathGlyphConstruction table.  May be NULL. */
+     MathGlyphConstruction table. May be nullptr. */
   OffsetTo<MathGlyphAssembly>	  glyphAssembly;
 
   /* MathGlyphVariantRecords for alternative variants of the glyphs. */
@@ -579,39 +583,41 @@ struct MathGlyphConstruction
 
 struct MathVariants
 {
-  bool sanitize_offsets (hb_sanitize_context_t *c) const
+  inline bool sanitize_offsets (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     unsigned int count = vertGlyphCount + horizGlyphCount;
     for (unsigned int i = 0; i < count; i++)
-      if (!glyphConstruction.arrayZ[i].sanitize (c, this)) return_trace (false);
+      if (!glyphConstruction[i].sanitize (c, this)) return_trace (false);
     return_trace (true);
   }
 
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
 		  vertGlyphCoverage.sanitize (c, this) &&
 		  horizGlyphCoverage.sanitize (c, this) &&
-		  c->check_array (glyphConstruction.arrayZ, vertGlyphCount + horizGlyphCount) &&
+		  c->check_array (glyphConstruction,
+				  glyphConstruction[0].static_size,
+				  vertGlyphCount + horizGlyphCount) &&
 		  sanitize_offsets (c));
   }
 
-  hb_position_t get_min_connector_overlap (hb_direction_t direction,
+  inline hb_position_t get_min_connector_overlap (hb_direction_t direction,
 						  hb_font_t *font) const
   { return font->em_scale_dir (minConnectorOverlap, direction); }
 
-  unsigned int get_glyph_variants (hb_codepoint_t glyph,
-				   hb_direction_t direction,
-				   hb_font_t *font,
-				   unsigned int start_offset,
-				   unsigned int *variants_count, /* IN/OUT */
-				   hb_ot_math_glyph_variant_t *variants /* OUT */) const
+  inline unsigned int get_glyph_variants (hb_codepoint_t glyph,
+					  hb_direction_t direction,
+					  hb_font_t *font,
+					  unsigned int start_offset,
+					  unsigned int *variants_count, /* IN/OUT */
+					  hb_ot_math_glyph_variant_t *variants /* OUT */) const
   { return get_glyph_construction (glyph, direction, font)
 	   .get_variants (direction, font, start_offset, variants_count, variants); }
 
-  unsigned int get_glyph_parts (hb_codepoint_t glyph,
+  inline unsigned int get_glyph_parts (hb_codepoint_t glyph,
 				       hb_direction_t direction,
 				       hb_font_t *font,
 				       unsigned int start_offset,
@@ -625,10 +631,10 @@ struct MathVariants
 		       italics_correction); }
 
   private:
-  const MathGlyphConstruction &
-  get_glyph_construction (hb_codepoint_t glyph,
-			  hb_direction_t direction,
-			  hb_font_t *font HB_UNUSED) const
+  inline const MathGlyphConstruction &
+		get_glyph_construction (hb_codepoint_t glyph,
+					hb_direction_t direction,
+					hb_font_t *font) const
   {
     bool vertical = HB_DIRECTION_IS_VERTICAL (direction);
     unsigned int count = vertical ? vertGlyphCount : horizGlyphCount;
@@ -636,7 +642,7 @@ struct MathVariants
 						  : horizGlyphCoverage;
 
     unsigned int index = (this+coverage).get_coverage (glyph);
-    if (unlikely (index >= count)) return Null (MathGlyphConstruction);
+    if (unlikely (index >= count)) return Null(MathGlyphConstruction);
 
     if (!vertical)
       index += vertGlyphCount;
@@ -645,7 +651,7 @@ struct MathVariants
   }
 
   protected:
-  HBUINT16	     minConnectorOverlap; /* Minimum overlap of connecting
+  UINT16	     minConnectorOverlap; /* Minimum overlap of connecting
 					   * glyphs during glyph construction,
 					   * in design units. */
   OffsetTo<Coverage> vertGlyphCoverage;   /* Offset to Coverage table -
@@ -654,18 +660,17 @@ struct MathVariants
   OffsetTo<Coverage> horizGlyphCoverage;  /* Offset to Coverage table -
 					   * from the beginning of MathVariants
 					   * table. */
-  HBUINT16	     vertGlyphCount;      /* Number of glyphs for which
+  UINT16	     vertGlyphCount;      /* Number of glyphs for which
 					   * information is provided for
 					   * vertically growing variants. */
-  HBUINT16	     horizGlyphCount;     /* Number of glyphs for which
+  UINT16	     horizGlyphCount;     /* Number of glyphs for which
 					   * information is provided for
 					   * horizontally growing variants. */
 
   /* Array of offsets to MathGlyphConstruction tables - from the beginning of
      the MathVariants table, for shapes growing in vertical/horizontal
      direction. */
-  UnsizedArrayOf<OffsetTo<MathGlyphConstruction> >
- 			glyphConstruction;
+  OffsetTo<MathGlyphConstruction> glyphConstruction[VAR];
 
   public:
   DEFINE_SIZE_ARRAY (10, glyphConstruction);
@@ -673,17 +678,14 @@ struct MathVariants
 
 
 /*
- * MATH -- Mathematical typesetting
- * https://docs.microsoft.com/en-us/typography/opentype/spec/math
+ * MATH -- The MATH Table
  */
 
 struct MATH
 {
-  enum { tableTag = HB_OT_TAG_MATH };
+  static const hb_tag_t tableTag	= HB_OT_TAG_MATH;
 
-  bool has_data () const { return version.to_int (); }
-
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (version.sanitize (c) &&
@@ -693,13 +695,15 @@ struct MATH
 		  mathVariants.sanitize (c, this));
   }
 
-  hb_position_t get_constant (hb_ot_math_constant_t  constant,
+  inline hb_position_t get_constant (hb_ot_math_constant_t  constant,
 				     hb_font_t		   *font) const
   { return (this+mathConstants).get_value (constant, font); }
 
-  const MathGlyphInfo &get_glyph_info () const { return this+mathGlyphInfo; }
+  inline const MathGlyphInfo &get_math_glyph_info (void) const
+  { return this+mathGlyphInfo; }
 
-  const MathVariants &get_variants () const    { return this+mathVariants; }
+  inline const MathVariants &get_math_variants (void) const
+  { return this+mathVariants; }
 
   protected:
   FixedVersion<>version;		/* Version of the MATH table

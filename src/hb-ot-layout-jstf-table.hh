@@ -27,7 +27,7 @@
 #ifndef HB_OT_LAYOUT_JSTF_TABLE_HH
 #define HB_OT_LAYOUT_JSTF_TABLE_HH
 
-#include "hb-open-type.hh"
+#include "hb-open-type-private.hh"
 #include "hb-ot-layout-gpos-table.hh"
 
 
@@ -54,7 +54,7 @@ typedef OffsetListOf<PosLookup> JstfMax;
 
 struct JstfPriority
 {
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
@@ -123,8 +123,8 @@ struct JstfPriority
 
 struct JstfLangSys : OffsetListOf<JstfPriority>
 {
-  bool sanitize (hb_sanitize_context_t *c,
-		 const Record_sanitize_closure_t * = nullptr) const
+  inline bool sanitize (hb_sanitize_context_t *c,
+			const Record<JstfLangSys>::sanitize_closure_t * = nullptr) const
   {
     TRACE_SANITIZE (this);
     return_trace (OffsetListOf<JstfPriority>::sanitize (c));
@@ -145,27 +145,27 @@ typedef SortedArrayOf<GlyphID> ExtenderGlyphs;
 
 struct JstfScript
 {
-  unsigned int get_lang_sys_count () const
+  inline unsigned int get_lang_sys_count (void) const
   { return langSys.len; }
-  const Tag& get_lang_sys_tag (unsigned int i) const
+  inline const Tag& get_lang_sys_tag (unsigned int i) const
   { return langSys.get_tag (i); }
-  unsigned int get_lang_sys_tags (unsigned int start_offset,
-				  unsigned int *lang_sys_count /* IN/OUT */,
-				  hb_tag_t     *lang_sys_tags /* OUT */) const
+  inline unsigned int get_lang_sys_tags (unsigned int start_offset,
+					 unsigned int *lang_sys_count /* IN/OUT */,
+					 hb_tag_t     *lang_sys_tags /* OUT */) const
   { return langSys.get_tags (start_offset, lang_sys_count, lang_sys_tags); }
-  const JstfLangSys& get_lang_sys (unsigned int i) const
+  inline const JstfLangSys& get_lang_sys (unsigned int i) const
   {
     if (i == Index::NOT_FOUND_INDEX) return get_default_lang_sys ();
     return this+langSys[i].offset;
   }
-  bool find_lang_sys_index (hb_tag_t tag, unsigned int *index) const
+  inline bool find_lang_sys_index (hb_tag_t tag, unsigned int *index) const
   { return langSys.find_index (tag, index); }
 
-  bool has_default_lang_sys () const               { return defaultLangSys != 0; }
-  const JstfLangSys& get_default_lang_sys () const { return this+defaultLangSys; }
+  inline bool has_default_lang_sys (void) const { return defaultLangSys != 0; }
+  inline const JstfLangSys& get_default_lang_sys (void) const { return this+defaultLangSys; }
 
-  bool sanitize (hb_sanitize_context_t *c,
-		 const Record_sanitize_closure_t * = nullptr) const
+  inline bool sanitize (hb_sanitize_context_t *c,
+			const Record<JstfScript>::sanitize_closure_t * = nullptr) const
   {
     TRACE_SANITIZE (this);
     return_trace (extenderGlyphs.sanitize (c, this) &&
@@ -189,28 +189,27 @@ struct JstfScript
 
 
 /*
- * JSTF -- Justification
- * https://docs.microsoft.com/en-us/typography/opentype/spec/jstf
+ * JSTF -- The Justification Table
  */
 
 struct JSTF
 {
-  enum { tableTag = HB_OT_TAG_JSTF };
+  static const hb_tag_t tableTag	= HB_OT_TAG_JSTF;
 
-  unsigned int get_script_count () const
+  inline unsigned int get_script_count (void) const
   { return scriptList.len; }
-  const Tag& get_script_tag (unsigned int i) const
+  inline const Tag& get_script_tag (unsigned int i) const
   { return scriptList.get_tag (i); }
-  unsigned int get_script_tags (unsigned int start_offset,
-				unsigned int *script_count /* IN/OUT */,
-				hb_tag_t     *script_tags /* OUT */) const
+  inline unsigned int get_script_tags (unsigned int start_offset,
+				       unsigned int *script_count /* IN/OUT */,
+				       hb_tag_t     *script_tags /* OUT */) const
   { return scriptList.get_tags (start_offset, script_count, script_tags); }
-  const JstfScript& get_script (unsigned int i) const
+  inline const JstfScript& get_script (unsigned int i) const
   { return this+scriptList[i].offset; }
-  bool find_script_index (hb_tag_t tag, unsigned int *index) const
+  inline bool find_script_index (hb_tag_t tag, unsigned int *index) const
   { return scriptList.find_index (tag, index); }
 
-  bool sanitize (hb_sanitize_context_t *c) const
+  inline bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
     return_trace (version.sanitize (c) &&

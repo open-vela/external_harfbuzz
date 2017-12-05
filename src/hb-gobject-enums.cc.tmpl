@@ -25,7 +25,7 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#include "hb.hh"
+#include "hb-private.hh"
 
 /* g++ didn't like older gtype.h gcc-only code path. */
 #include <glib.h>
@@ -46,7 +46,7 @@
 
 /*** BEGIN value-header ***/
 GType
-@enum_name@_get_type ()
+@enum_name@_get_type (void)
 {
   static gsize type_id = 0;
 
