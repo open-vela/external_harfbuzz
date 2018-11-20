@@ -31,6 +31,7 @@
 #include "hb-ot-hhea-table.hh"
 #include "hb-ot-os2-table.hh"
 #include "hb-ot-var-hvar-table.hh"
+#include "hb-ot-metrics.hh"
 
 /*
  * hmtx -- Horizontal Metrics
@@ -168,29 +169,16 @@ struct hmtxvmtx
     {
       memset (this, 0, sizeof (*this));
       default_advance = default_advance_ ? default_advance_ : hb_face_get_upem (face);
+      ascender = 0; descender = 0; line_gap = 0;
 
-      bool got_font_extents = false;
-      if (T::os2Tag != HB_TAG_NONE && face->table.OS2->is_typo_metrics ())
-      {
-	ascender = abs (face->table.OS2->sTypoAscender);
-	descender = -abs (face->table.OS2->sTypoDescender);
-	line_gap = face->table.OS2->sTypoLineGap;
-	got_font_extents = (ascender | descender) != 0;
-      }
+      hb_ot_metrics_get_position_internal (face, (hb_ot_metrics_t) T::ascenderTag, &ascender);
+      hb_ot_metrics_get_position_internal (face, (hb_ot_metrics_t) T::descenderTag, &descender);
+      hb_ot_metrics_get_position_internal (face, (hb_ot_metrics_t) T::lineGapTag, &line_gap);
+      ascender = fabs (ascender);
+      descender = -fabs (descender);
+      has_font_extents = ascender != 0 || descender != 0;
 
-      hb_blob_t *_hea_blob = hb_sanitize_context_t().reference_table<H> (face);
-      const H *_hea_table = _hea_blob->as<H> ();
-      num_advances = _hea_table->numberOfLongMetrics;
-      if (!got_font_extents)
-      {
-	ascender = abs (_hea_table->ascender);
-	descender = -abs (_hea_table->descender);
-	line_gap = _hea_table->lineGap;
-	got_font_extents = (ascender | descender) != 0;
-      }
-      hb_blob_destroy (_hea_blob);
-
-      has_font_extents = got_font_extents;
+      num_advances = T::is_horizontal ? face->table.hhea->numberOfLongMetrics : face->table.vhea->numberOfLongMetrics;
 
       table = hb_sanitize_context_t().reference_table<hmtxvmtx> (face, T::tableTag);
 
@@ -309,9 +297,9 @@ struct hmtxvmtx
 
     public:
     bool has_font_extents;
-    int ascender;
-    int descender;
-    int line_gap;
+    float ascender;
+    float descender;
+    float line_gap;
 
     protected:
     unsigned int num_metrics;
@@ -352,12 +340,18 @@ struct hmtxvmtx
 struct hmtx : hmtxvmtx<hmtx, hhea> {
   static constexpr hb_tag_t tableTag = HB_OT_TAG_hmtx;
   static constexpr hb_tag_t variationsTag = HB_OT_TAG_HVAR;
-  static constexpr hb_tag_t os2Tag = HB_OT_TAG_OS2;
+  static constexpr hb_tag_t ascenderTag = HB_OT_METRICS_HORIZONTAL_ASCENDER;
+  static constexpr hb_tag_t descenderTag = HB_OT_METRICS_HORIZONTAL_DESCENDER;
+  static constexpr hb_tag_t lineGapTag = HB_OT_METRICS_HORIZONTAL_LINE_GAP;
+  static constexpr bool is_horizontal = true;
 };
 struct vmtx : hmtxvmtx<vmtx, vhea> {
   static constexpr hb_tag_t tableTag = HB_OT_TAG_vmtx;
   static constexpr hb_tag_t variationsTag = HB_OT_TAG_VVAR;
-  static constexpr hb_tag_t os2Tag = HB_TAG_NONE;
+  static constexpr hb_tag_t ascenderTag = HB_OT_METRICS_VERTICAL_ASCENDER;
+  static constexpr hb_tag_t descenderTag = HB_OT_METRICS_VERTICAL_DESCENDER;
+  static constexpr hb_tag_t lineGapTag = HB_OT_METRICS_VERTICAL_LINE_GAP;
+  static constexpr bool is_horizontal = false;
 };
 
 struct hmtx_accelerator_t : hmtx::accelerator_t {};
