@@ -24,52 +24,16 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#ifndef HB_ALGS_HH
-#define HB_ALGS_HH
+#ifndef HB_DSALGS_HH
+#define HB_DSALGS_HH
 
 #include "hb.hh"
 #include "hb-null.hh"
 
 
-template <typename T>
-inline typename T::iter_t
-hb_iter (const T& c) { return c.iter (); }
-
-static HB_UNUSED struct hb_identity_t
-{
-  template <typename T> T
-  operator () (const T& v) const { return v; }
-} hb_identity;
-
-template <typename T1, typename T2>
-struct hb_pair_t
-{
-  typedef T1 first_t;
-  typedef T2 second_t;
-  typedef hb_pair_t<T1, T2> pair_t;
-
-  hb_pair_t (const T1& a, const T2& b) : first (a), second (b) {}
-  hb_pair_t (const pair_t& o) : first (o.first), second (o.second) {}
-
-  bool operator == (const pair_t& o) const { return first == o.first && second == o.second; }
-
-  T1 first;
-  T2 second;
-};
-template <typename T1, typename T2> static inline hb_pair_t<T1, T2>
-hb_pair (T1 a, T2 b) { return hb_pair_t<T1, T2> (a, b); }
-
-static HB_UNUSED struct hb_first_t
-{
-  template <typename Pair> typename Pair::first_t
-  operator () (const Pair& pair) const { return pair.first; }
-} hb_first;
-
-static HB_UNUSED struct hb_second_t
-{
-  template <typename Pair> typename Pair::second_t
-  operator () (const Pair& pair) const { return pair.second; }
-} hb_second;
+/* Void! For when we need a expression-type of void. */
+typedef const struct _hb_void_t *hb_void_t;
+#define HB_VOID ((const _hb_void_t *) nullptr)
 
 
 /*
@@ -269,8 +233,8 @@ hb_ctz (T v)
  * Tiny stuff.
  */
 
-template <typename T> static inline T*
-hb_addressof (const T& arg)
+template <typename T>
+static inline T* hb_addressof (T& arg)
 {
   /* https://en.cppreference.com/w/cpp/memory/addressof */
   return reinterpret_cast<T*>(
@@ -330,6 +294,26 @@ hb_ceil_to_4 (unsigned int v)
 {
   return ((v - 1) | 3) + 1;
 }
+
+template <typename T> struct hb_is_signed;
+template <> struct hb_is_signed<signed char> { enum { value = true }; };
+template <> struct hb_is_signed<signed short> { enum { value = true }; };
+template <> struct hb_is_signed<signed int> { enum { value = true }; };
+template <> struct hb_is_signed<signed long> { enum { value = true }; };
+template <> struct hb_is_signed<unsigned char> { enum { value = false }; };
+template <> struct hb_is_signed<unsigned short> { enum { value = false }; };
+template <> struct hb_is_signed<unsigned int> { enum { value = false }; };
+template <> struct hb_is_signed<unsigned long> { enum { value = false }; };
+/* We need to define hb_is_signed for the typedefs we use on pre-Visual
+ * Studio 2010 for the int8_t type, since __int8/__int64 is not considered
+ * the same as char/long.  The previous lines will suffice for the other
+ * types, though.  Note that somehow, unsigned __int8 is considered same
+ * as unsigned char.
+ * https://github.com/harfbuzz/harfbuzz/pull/1499
+ */
+#if defined(_MSC_VER) && (_MSC_VER < 1600)
+template <> struct hb_is_signed<__int8> { enum { value = true }; };
+#endif
 
 template <typename T> static inline bool
 hb_in_range (T u, T lo, T hi)
@@ -509,17 +493,16 @@ static inline void sort_r_simple(void *base, size_t nel, size_t w,
   }
 }
 
-static inline void
-hb_sort_r (void *base, size_t nel, size_t width,
-	   int (*compar)(const void *_a, const void *_b, void *_arg),
-	   void *arg)
+static inline void hb_sort_r(void *base, size_t nel, size_t width,
+			     int (*compar)(const void *_a, const void *_b, void *_arg),
+			     void *arg)
 {
     sort_r_simple(base, nel, width, compar, arg);
 }
 
 
-template <typename T, typename T2, typename T3> static inline void
-hb_stable_sort (T *array, unsigned int len, int(*compar)(const T2 *, const T2 *), T3 *array2)
+template <typename T, typename T2> static inline void
+hb_stable_sort (T *array, unsigned int len, int(*compar)(const T *, const T *), T2 *array2)
 {
   for (unsigned int i = 1; i < len; i++)
   {
@@ -536,8 +519,8 @@ hb_stable_sort (T *array, unsigned int len, int(*compar)(const T2 *, const T2 *)
     }
     if (array2)
     {
-      T3 t = array2[i];
-      memmove (&array2[j + 1], &array2[j], (i - j) * sizeof (T3));
+      T2 t = array2[i];
+      memmove (&array2[j + 1], &array2[j], (i - j) * sizeof (T2));
       array2[j] = t;
     }
   }
@@ -652,4 +635,4 @@ struct hb_vector_size_t
 };
 
 
-#endif /* HB_ALGS_HH */
+#endif /* HB_DSALGS_HH */
