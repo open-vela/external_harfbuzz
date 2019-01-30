@@ -110,29 +110,21 @@ struct VORG
     /* count the number of glyphs to be included in the subset table */
     hb_vector_t<VertOriginMetric> subset_metrics;
     subset_metrics.init ();
-
-
-    hb_codepoint_t old_glyph = HB_SET_VALUE_INVALID;
+    unsigned int glyph = 0;
     unsigned int i = 0;
-    while (i < vertYOrigins.len
-           && plan->glyphset ()->next (&old_glyph))
+    while ((glyph < plan->glyphs.length) && (i < vertYOrigins.len))
     {
-      while (old_glyph > vertYOrigins[i].glyph)
-      {
+      if (plan->glyphs[glyph] > vertYOrigins[i].glyph)
         i++;
-        if (i >= vertYOrigins.len)
-          break;
-      }
-
-      if (old_glyph == vertYOrigins[i].glyph)
+      else if (plan->glyphs[glyph] < vertYOrigins[i].glyph)
+        glyph++;
+      else
       {
-        hb_codepoint_t new_glyph;
-        if (plan->new_gid_for_old_gid (old_glyph, &new_glyph))
-        {
-          VertOriginMetric *metrics = subset_metrics.push ();
-          metrics->glyph.set (new_glyph);
-          metrics->vertOriginY.set (vertYOrigins[i].vertOriginY);
-        }
+        VertOriginMetric *metrics = subset_metrics.push ();
+        metrics->glyph.set (glyph);
+        metrics->vertOriginY.set (vertYOrigins[i].vertOriginY);
+        glyph++;
+        i++;
       }
     }
 
