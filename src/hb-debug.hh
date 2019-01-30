@@ -29,7 +29,7 @@
 
 #include "hb.hh"
 #include "hb-atomic.hh"
-#include "hb-algs.hh"
+#include "hb-dsalgs.hh"
 
 
 #ifndef HB_DEBUG
