@@ -225,9 +225,6 @@ struct cff2_cs_opset_subr_subset_t : cff2_cs_opset_t<cff2_cs_opset_subr_subset_t
 
 struct cff2_subr_subsetter_t : subr_subsetter_t<cff2_subr_subsetter_t, CFF2Subrs, const OT::cff2::accelerator_subset_t, cff2_cs_interp_env_t, cff2_cs_opset_subr_subset_t>
 {
-  cff2_subr_subsetter_t (const OT::cff2::accelerator_subset_t &acc, const hb_subset_plan_t *plan)
-    : subr_subsetter_t (acc, plan) {}
-
   static void finalize_parsed_str (cff2_cs_interp_env_t &env, subr_subset_param_t& param, parsed_cs_str_t &charstring)
   {
     /* vsindex is inserted at the beginning of the charstring as necessary */
@@ -290,7 +287,7 @@ struct cff2_subset_plan {
     {
       /* Flatten global & local subrs */
       subr_flattener_t<const OT::cff2::accelerator_subset_t, cff2_cs_interp_env_t, cff2_cs_opset_flatten_t>
-		    flattener(acc, plan);
+		    flattener(acc, plan->glyphs_deprecated, plan->drop_hints);
       if (!flattener.flatten (subset_charstrings))
 	return false;
 
@@ -299,14 +296,12 @@ struct cff2_subset_plan {
     }
     else
     {
-      cff2_subr_subsetter_t	subr_subsetter (acc, plan);
-
       /* Subset subrs: collect used subroutines, leaving all unused ones behind */
-      if (!subr_subsetter.subset ())
+      if (!subr_subsetter.subset (acc, plan->glyphs_deprecated, plan->drop_hints))
 	return false;
 
       /* encode charstrings, global subrs, local subrs with new subroutine numbers */
-      if (!subr_subsetter.encode_charstrings (subset_charstrings))
+      if (!subr_subsetter.encode_charstrings (acc, plan->glyphs_deprecated, subset_charstrings))
 	return false;
 
       if (!subr_subsetter.encode_globalsubrs (subset_globalsubrs))
@@ -357,7 +352,7 @@ struct cff2_subset_plan {
     if (acc.fdSelect != &Null(CFF2FDSelect))
     {
       offsets.FDSelectInfo.offset = final_size;
-      if (unlikely (!hb_plan_subset_cff_fdselect (plan,
+      if (unlikely (!hb_plan_subset_cff_fdselect (plan->glyphs_deprecated,
 				  orig_fdcount,
 				  *(const FDSelect *)acc.fdSelect,
 				  subset_fdcount,
@@ -390,7 +385,7 @@ struct cff2_subset_plan {
       offsets.charStringsInfo.offset = final_size;
       unsigned int dataSize = subset_charstrings.total_size ();
       offsets.charStringsInfo.offSize = calcOffSize (dataSize);
-      final_size += CFF2CharStrings::calculate_serialized_size (offsets.charStringsInfo.offSize, plan->num_output_glyphs (), dataSize);
+      final_size += CFF2CharStrings::calculate_serialized_size (offsets.charStringsInfo.offSize, plan->glyphs_deprecated.length, dataSize);
     }
 
     /* private dicts & local subrs */
@@ -436,11 +431,12 @@ struct cff2_subset_plan {
 
   bool	    drop_hints;
   bool	    desubroutinize;
+  cff2_subr_subsetter_t       subr_subsetter;
 };
 
 static inline bool _write_cff2 (const cff2_subset_plan &plan,
 				const OT::cff2::accelerator_subset_t  &acc,
-				unsigned int num_glyphs,
+				const hb_vector_t<hb_codepoint_t>& glyphs,
 				unsigned int dest_sz,
 				void *dest)
 {
@@ -497,7 +493,7 @@ static inline bool _write_cff2 (const cff2_subset_plan &plan,
   {
     assert (plan.offsets.FDSelectInfo.offset == (unsigned) (c.head - c.start));
 
-    if (unlikely (!hb_serialize_cff_fdselect (&c, num_glyphs, *(const FDSelect *)acc.fdSelect, acc.fdArray->count,
+    if (unlikely (!hb_serialize_cff_fdselect (&c, glyphs.length, *(const FDSelect *)acc.fdSelect, acc.fdArray->count,
 					      plan.subset_fdselect_format, plan.offsets.FDSelectInfo.size,
 					      plan.subset_fdselect_ranges)))
     {
@@ -588,7 +584,7 @@ _hb_subset_cff2 (const OT::cff2::accelerator_subset_t  &acc,
   unsigned int  cff2_prime_size = cff2_plan.get_final_size ();
   char *cff2_prime_data = (char *) calloc (1, cff2_prime_size);
 
-  if (unlikely (!_write_cff2 (cff2_plan, acc, plan->num_output_glyphs (),
+  if (unlikely (!_write_cff2 (cff2_plan, acc, plan->glyphs_deprecated,
 			      cff2_prime_size, cff2_prime_data))) {
     DEBUG_MSG(SUBSET, nullptr, "Failed to write a subset cff2.");
     free (cff2_prime_data);
@@ -596,10 +592,10 @@ _hb_subset_cff2 (const OT::cff2::accelerator_subset_t  &acc,
   }
 
   *prime = hb_blob_create (cff2_prime_data,
-			   cff2_prime_size,
-			   HB_MEMORY_MODE_READONLY,
-			   cff2_prime_data,
-			   free);
+				cff2_prime_size,
+				HB_MEMORY_MODE_READONLY,
+				cff2_prime_data,
+				free);
   return true;
 }
 
