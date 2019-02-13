@@ -59,14 +59,14 @@ struct Encoding0 {
   bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    return_trace (codes.sanitize (c));
+    return_trace (c->check_struct (this) && codes[nCodes - 1].sanitize (c));
   }
 
   hb_codepoint_t get_code (hb_codepoint_t glyph) const
   {
     assert (glyph > 0);
     glyph--;
-    if (glyph < nCodes ())
+    if (glyph < nCodes)
     {
       return (hb_codepoint_t)codes[glyph];
     }
@@ -74,12 +74,13 @@ struct Encoding0 {
       return CFF_UNDEF_CODE;
   }
 
-  HBUINT8 &nCodes () { return codes.len; }
-  HBUINT8 nCodes () const { return codes.len; }
+  unsigned int get_size () const
+  { return HBUINT8::static_size * (nCodes + 1); }
 
-  ArrayOf<HBUINT8, HBUINT8> codes;
+  HBUINT8     nCodes;
+  HBUINT8     codes[VAR];
 
-  DEFINE_SIZE_ARRAY_SIZED (1, codes);
+  DEFINE_SIZE_ARRAY(1, codes);
 };
 
 struct Encoding1_Range {
@@ -96,17 +97,20 @@ struct Encoding1_Range {
 };
 
 struct Encoding1 {
+  unsigned int get_size () const
+  { return HBUINT8::static_size + Encoding1_Range::static_size * nRanges; }
+
   bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    return_trace (ranges.sanitize (c));
+    return_trace (c->check_struct (this) && ((nRanges == 0) || (ranges[nRanges - 1]).sanitize (c)));
   }
 
   hb_codepoint_t get_code (hb_codepoint_t glyph) const
   {
     assert (glyph > 0);
     glyph--;
-    for (unsigned int i = 0; i < nRanges (); i++)
+    for (unsigned int i = 0; i < nRanges; i++)
     {
       if (glyph <= ranges[i].nLeft)
       {
@@ -117,12 +121,10 @@ struct Encoding1 {
     return CFF_UNDEF_CODE;
   }
 
-  HBUINT8 &nRanges () { return ranges.len; }
-  HBUINT8 nRanges () const { return ranges.len; }
+  HBUINT8	   nRanges;
+  Encoding1_Range   ranges[VAR];
 
-  ArrayOf<Encoding1_Range, HBUINT8> ranges;
-
-  DEFINE_SIZE_ARRAY_SIZED (1, ranges);
+  DEFINE_SIZE_ARRAY (1, ranges);
 };
 
 struct SuppEncoding {
@@ -142,22 +144,23 @@ struct CFF1SuppEncData {
   bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
-    return_trace (supps.sanitize (c));
+    return_trace (c->check_struct (this) && ((nSups == 0) || (supps[nSups - 1]).sanitize (c)));
   }
 
   void get_codes (hb_codepoint_t sid, hb_vector_t<hb_codepoint_t> &codes) const
   {
-    for (unsigned int i = 0; i < nSups (); i++)
+    for (unsigned int i = 0; i < nSups; i++)
       if (sid == supps[i].glyph)
 	codes.push (supps[i].code);
   }
 
-  HBUINT8 &nSups () { return supps.len; }
-  HBUINT8 nSups () const { return supps.len; }
+  unsigned int get_size () const
+  { return HBUINT8::static_size + SuppEncoding::static_size * nSups; }
 
-  ArrayOf<SuppEncoding, HBUINT8> supps;
+  HBUINT8	 nSups;
+  SuppEncoding   supps[VAR];
 
-  DEFINE_SIZE_ARRAY_SIZED (1, supps);
+  DEFINE_SIZE_ARRAY (1, supps);
 };
 
 struct Encoding {
@@ -201,7 +204,7 @@ struct Encoding {
     {
       Encoding0 *fmt0 = c->allocate_size<Encoding0> (Encoding0::min_size + HBUINT8::static_size * enc_count);
     if (unlikely (fmt0 == nullptr)) return_trace (false);
-      fmt0->nCodes ().set (enc_count);
+      fmt0->nCodes.set (enc_count);
       unsigned int glyph = 0;
       for (unsigned int i = 0; i < code_ranges.length; i++)
       {
@@ -216,7 +219,7 @@ struct Encoding {
     {
       Encoding1 *fmt1 = c->allocate_size<Encoding1> (Encoding1::min_size + Encoding1_Range::static_size * code_ranges.length);
       if (unlikely (fmt1 == nullptr)) return_trace (false);
-      fmt1->nRanges ().set (code_ranges.length);
+      fmt1->nRanges.set (code_ranges.length);
       for (unsigned int i = 0; i < code_ranges.length; i++)
       {
 	if (unlikely (!((code_ranges[i].code <= 0xFF) && (code_ranges[i].glyph <= 0xFF))))
@@ -229,7 +232,7 @@ struct Encoding {
     {
       CFF1SuppEncData *suppData = c->allocate_size<CFF1SuppEncData> (CFF1SuppEncData::min_size + SuppEncoding::static_size * supp_codes.length);
       if (unlikely (suppData == nullptr)) return_trace (false);
-      suppData->nSups ().set (supp_codes.length);
+      suppData->nSups.set (supp_codes.length);
       for (unsigned int i = 0; i < supp_codes.length; i++)
       {
 	suppData->supps[i].code.set (supp_codes[i].code);
@@ -288,9 +291,9 @@ struct Encoding {
   const CFF1SuppEncData &suppEncData () const
   {
     if ((format & 0x7F) == 0)
-      return StructAfter<CFF1SuppEncData> (u.format0.codes[u.format0.nCodes ()-1]);
+      return StructAfter<CFF1SuppEncData> (u.format0.codes[u.format0.nCodes-1]);
     else
-      return StructAfter<CFF1SuppEncData> (u.format1.ranges[u.format1.nRanges ()-1]);
+      return StructAfter<CFF1SuppEncData> (u.format1.ranges[u.format1.nRanges-1]);
   }
 
   public:
