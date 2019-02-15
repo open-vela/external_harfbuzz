@@ -33,6 +33,7 @@
 #define HB_ATOMIC_HH
 
 #include "hb.hh"
+#include "hb-meta.hh"
 
 
 /*
@@ -184,7 +185,7 @@ static inline bool _hb_compare_and_swap_ptr (void **P, void *O, void *N)
 #endif
 
 
-#elif !defined(HB_NO_MT) && defined(_AIX) && (defined(__IBMCPP__) || defined(__ibmxl__))
+#elif !defined(HB_NO_MT) && defined(_AIX) && defined(__IBMCPP__)
 
 #include <builtins.h>
 
@@ -282,7 +283,7 @@ struct hb_atomic_int_t
 template <typename P>
 struct hb_atomic_ptr_t
 {
-  typedef typename hb_remove_pointer (P) T;
+  typedef hb_remove_pointer (P) T;
 
   void init (T* v_ = nullptr) { set_relaxed (v_); }
   void set_relaxed (T* v_) { hb_atomic_ptr_impl_set_relaxed (&v, v_); }
