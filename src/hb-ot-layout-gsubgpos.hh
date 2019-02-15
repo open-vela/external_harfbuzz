@@ -64,8 +64,8 @@ struct hb_closure_context_t :
   const char *get_name () { return "CLOSURE"; }
   typedef return_t (*recurse_func_t) (hb_closure_context_t *c, unsigned int lookup_index);
   template <typename T>
-  return_t dispatch (const T &obj) { obj.closure (this); return hb_void_t (); }
-  static return_t default_return_value () { return hb_void_t (); }
+  return_t dispatch (const T &obj) { obj.closure (this); return HB_VOID; }
+  static return_t default_return_value () { return HB_VOID; }
   void recurse (unsigned int lookup_index)
   {
     if (unlikely (nesting_level_left == 0 || !recurse_func))
@@ -92,7 +92,7 @@ struct hb_closure_context_t :
 
   hb_face_t *face;
   hb_set_t *glyphs;
-  hb_set_t output[1];
+  hb_set_t out[1];
   recurse_func_t recurse_func;
   unsigned int nesting_level_left;
   unsigned int debug_depth;
@@ -114,8 +114,8 @@ struct hb_closure_context_t :
 
   void flush ()
   {
-    hb_set_union (glyphs, output);
-    hb_set_clear (output);
+    hb_set_union (glyphs, out);
+    hb_set_clear (out);
   }
 
   private:
@@ -156,8 +156,8 @@ struct hb_collect_glyphs_context_t :
   const char *get_name () { return "COLLECT_GLYPHS"; }
   typedef return_t (*recurse_func_t) (hb_collect_glyphs_context_t *c, unsigned int lookup_index);
   template <typename T>
-  return_t dispatch (const T &obj) { obj.collect_glyphs (this); return hb_void_t (); }
-  static return_t default_return_value () { return hb_void_t (); }
+  return_t dispatch (const T &obj) { obj.collect_glyphs (this); return HB_VOID; }
+  static return_t default_return_value () { return HB_VOID; }
   void recurse (unsigned int lookup_index)
   {
     if (unlikely (nesting_level_left == 0 || !recurse_func))
@@ -652,9 +652,9 @@ struct hb_get_subtables_context_t :
   {
     hb_applicable_t *entry = array.push();
     entry->init (obj, apply_to<T>);
-    return hb_void_t ();
+    return HB_VOID;
   }
-  static return_t default_return_value () { return hb_void_t (); }
+  static return_t default_return_value () { return HB_VOID; }
 
   hb_get_subtables_context_t (array_t &array_) :
 			      array (array_),
@@ -706,8 +706,8 @@ static inline bool intersects_array (const hb_set_t *glyphs,
 				     intersects_func_t intersects_func,
 				     const void *intersects_data)
 {
-  for (auto it = hb_iter (values, count); it; ++it)
-    if (likely (!intersects_func (glyphs, *it, intersects_data)))
+  for (unsigned int i = 0; i < count; i++)
+    if (likely (!intersects_func (glyphs, values[i], intersects_data)))
       return false;
   return true;
 }
@@ -734,8 +734,8 @@ static inline void collect_array (hb_collect_glyphs_context_t *c HB_UNUSED,
 				  collect_glyphs_func_t collect_func,
 				  const void *collect_data)
 {
-  for (auto it = hb_iter (values, count); it; ++it)
-    collect_func (glyphs, *it, collect_data);
+  for (unsigned int i = 0; i < count; i++)
+    collect_func (glyphs, values[i], collect_data);
 }
 
 
@@ -1364,8 +1364,9 @@ struct RuleSet
   bool intersects (const hb_set_t *glyphs,
 		   ContextClosureLookupContext &lookup_context) const
   {
-    for (auto it = hb_iter (rule); it; ++it)
-      if ((this+*it).intersects (glyphs, lookup_context))
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
+      if ((this+rule[i]).intersects (glyphs, lookup_context))
 	return true;
     return false;
   }
@@ -1373,24 +1374,27 @@ struct RuleSet
   void closure (hb_closure_context_t *c,
 		ContextClosureLookupContext &lookup_context) const
   {
-    for (auto it = hb_iter (rule); it; ++it)
-      (this+*it).closure (c, lookup_context);
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
+      (this+rule[i]).closure (c, lookup_context);
   }
 
   void collect_glyphs (hb_collect_glyphs_context_t *c,
 		       ContextCollectGlyphsLookupContext &lookup_context) const
   {
-    for (auto it = hb_iter (rule); it; ++it)
-      (this+*it).collect_glyphs (c, lookup_context);
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
+      (this+rule[i]).collect_glyphs (c, lookup_context);
   }
 
   bool would_apply (hb_would_apply_context_t *c,
 		    ContextApplyLookupContext &lookup_context) const
   {
     TRACE_WOULD_APPLY (this);
-    for (auto it = hb_iter (rule); it; ++it)
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
     {
-      if ((this+*it).would_apply (c, lookup_context))
+      if ((this+rule[i]).would_apply (c, lookup_context))
 	return_trace (true);
     }
     return_trace (false);
@@ -1400,9 +1404,10 @@ struct RuleSet
 	      ContextApplyLookupContext &lookup_context) const
   {
     TRACE_APPLY (this);
-    for (auto it = hb_iter (rule); it; ++it)
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
     {
-      if ((this+*it).apply (c, lookup_context))
+      if ((this+rule[i]).apply (c, lookup_context))
 	return_trace (true);
     }
     return_trace (false);
@@ -1431,11 +1436,16 @@ struct ContextFormat1
       {intersects_glyph},
       nullptr
     };
-    for (auto it = hb_zip (this+coverage, ruleSet)
-		 | hb_filter (*glyphs, hb_first)
-		 | hb_map (hb_second); it; ++it)
-      if ((this+*it).intersects (glyphs, lookup_context))
+
+    unsigned int count = ruleSet.len;
+    for (Coverage::Iter iter (this+coverage); iter.more (); iter.next ())
+    {
+      if (unlikely (iter.get_coverage () >= count))
+	break; /* Work around malicious fonts. https://github.com/harfbuzz/harfbuzz/issues/363 */
+      if (glyphs->has (iter.get_glyph ()) &&
+	  (this+ruleSet[iter.get_coverage ()]).intersects (glyphs, lookup_context))
 	return true;
+    }
     return false;
   }
 
@@ -1445,10 +1455,15 @@ struct ContextFormat1
       {intersects_glyph},
       nullptr
     };
-    for (auto it = hb_zip (this+coverage, ruleSet)
-		 | hb_filter (*c->glyphs, hb_first)
-		 | hb_map (hb_second); it; ++it)
-      (this+*it).closure (c, lookup_context);
+
+    unsigned int count = ruleSet.len;
+    for (Coverage::Iter iter (this+coverage); iter.more (); iter.next ())
+    {
+      if (unlikely (iter.get_coverage () >= count))
+	break; /* Work around malicious fonts. https://github.com/harfbuzz/harfbuzz/issues/363 */
+      if (c->glyphs->has (iter.get_glyph ()))
+	(this+ruleSet[iter.get_coverage ()]).closure (c, lookup_context);
+    }
   }
 
   void collect_glyphs (hb_collect_glyphs_context_t *c) const
@@ -1460,8 +1475,9 @@ struct ContextFormat1
       nullptr
     };
 
-    for (auto it = hb_iter (ruleSet); it; ++it)
-      (this+*it).collect_glyphs (c, lookup_context);
+    unsigned int count = ruleSet.len;
+    for (unsigned int i = 0; i < count; i++)
+      (this+ruleSet[i]).collect_glyphs (c, lookup_context);
   }
 
   bool would_apply (hb_would_apply_context_t *c) const
@@ -1572,8 +1588,9 @@ struct ContextFormat2
       &class_def
     };
 
-    for (auto it = hb_iter (ruleSet); it; ++it)
-      (this+*it).collect_glyphs (c, lookup_context);
+    unsigned int count = ruleSet.len;
+    for (unsigned int i = 0; i < count; i++)
+      (this+ruleSet[i]).collect_glyphs (c, lookup_context);
   }
 
   bool would_apply (hb_would_apply_context_t *c) const
@@ -2008,28 +2025,32 @@ struct ChainRuleSet
 {
   bool intersects (const hb_set_t *glyphs, ChainContextClosureLookupContext &lookup_context) const
   {
-    for (auto it = hb_iter (rule); it; ++it)
-      if ((this+*it).intersects (glyphs, lookup_context))
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
+      if ((this+rule[i]).intersects (glyphs, lookup_context))
 	return true;
     return false;
   }
   void closure (hb_closure_context_t *c, ChainContextClosureLookupContext &lookup_context) const
   {
-    for (auto it = hb_iter (rule); it; ++it)
-      (this+*it).closure (c, lookup_context);
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
+      (this+rule[i]).closure (c, lookup_context);
   }
 
   void collect_glyphs (hb_collect_glyphs_context_t *c, ChainContextCollectGlyphsLookupContext &lookup_context) const
   {
-    for (auto it = hb_iter (rule); it; ++it)
-      (this+*it).collect_glyphs (c, lookup_context);
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
+      (this+rule[i]).collect_glyphs (c, lookup_context);
   }
 
   bool would_apply (hb_would_apply_context_t *c, ChainContextApplyLookupContext &lookup_context) const
   {
     TRACE_WOULD_APPLY (this);
-    for (auto it = hb_iter (rule); it; ++it)
-      if ((this+*it).would_apply (c, lookup_context))
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
+      if ((this+rule[i]).would_apply (c, lookup_context))
 	return_trace (true);
 
     return_trace (false);
@@ -2038,8 +2059,9 @@ struct ChainRuleSet
   bool apply (hb_ot_apply_context_t *c, ChainContextApplyLookupContext &lookup_context) const
   {
     TRACE_APPLY (this);
-    for (auto it = hb_iter (rule); it; ++it)
-      if ((this+*it).apply (c, lookup_context))
+    unsigned int num_rules = rule.len;
+    for (unsigned int i = 0; i < num_rules; i++)
+      if ((this+rule[i]).apply (c, lookup_context))
 	return_trace (true);
 
     return_trace (false);
@@ -2067,11 +2089,16 @@ struct ChainContextFormat1
       {intersects_glyph},
       {nullptr, nullptr, nullptr}
     };
-    for (auto it = hb_zip (this+coverage, ruleSet)
-		 | hb_filter (*glyphs, hb_first)
-		 | hb_map (hb_second); it; ++it)
-      if ((this+*it).intersects (glyphs, lookup_context))
+
+    unsigned int count = ruleSet.len;
+    for (Coverage::Iter iter (this+coverage); iter.more (); iter.next ())
+    {
+      if (unlikely (iter.get_coverage () >= count))
+	break; /* Work around malicious fonts. https://github.com/harfbuzz/harfbuzz/issues/363 */
+      if (glyphs->has (iter.get_glyph ()) &&
+	  (this+ruleSet[iter.get_coverage ()]).intersects (glyphs, lookup_context))
 	return true;
+    }
     return false;
   }
 
@@ -2081,10 +2108,15 @@ struct ChainContextFormat1
       {intersects_glyph},
       {nullptr, nullptr, nullptr}
     };
-    for (auto it = hb_zip (this+coverage, ruleSet)
-		 | hb_filter (*c->glyphs, hb_first)
-		 | hb_map (hb_second); it; ++it)
-      (this+*it).closure (c, lookup_context);
+
+    unsigned int count = ruleSet.len;
+    for (Coverage::Iter iter (this+coverage); iter.more (); iter.next ())
+    {
+      if (unlikely (iter.get_coverage () >= count))
+	break; /* Work around malicious fonts. https://github.com/harfbuzz/harfbuzz/issues/363 */
+      if (c->glyphs->has (iter.get_glyph ()))
+	(this+ruleSet[iter.get_coverage ()]).closure (c, lookup_context);
+    }
   }
 
   void collect_glyphs (hb_collect_glyphs_context_t *c) const
@@ -2096,8 +2128,9 @@ struct ChainContextFormat1
       {nullptr, nullptr, nullptr}
     };
 
-    for (auto it = hb_iter (ruleSet); it; ++it)
-      (this+*it).collect_glyphs (c, lookup_context);
+    unsigned int count = ruleSet.len;
+    for (unsigned int i = 0; i < count; i++)
+      (this+ruleSet[i]).collect_glyphs (c, lookup_context);
   }
 
   bool would_apply (hb_would_apply_context_t *c) const
@@ -2218,8 +2251,9 @@ struct ChainContextFormat2
        &lookahead_class_def}
     };
 
-    for (auto it = hb_iter (ruleSet); it; ++it)
-      (this+*it).collect_glyphs (c, lookup_context);
+    unsigned int count = ruleSet.len;
+    for (unsigned int i = 0; i < count; i++)
+      (this+ruleSet[i]).collect_glyphs (c, lookup_context);
   }
 
   bool would_apply (hb_would_apply_context_t *c) const
