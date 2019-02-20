@@ -541,7 +541,7 @@ struct subr_subset_param_t
   bool	  drop_hints;
 };
 
-struct subr_remap_t : hb_bimap_t
+struct subr_remap_t : hb_map2_t
 {
   void create (hb_set_t *closure)
   {
@@ -572,15 +572,15 @@ struct subr_remap_t : hb_bimap_t
   int bias;
 };
 
-struct subr_remaps_t
+struct subr_remap_ts
 {
-  subr_remaps_t ()
+  subr_remap_ts ()
   {
     global_remap.init ();
     local_remaps.init ();
   }
 
-  ~subr_remaps_t () { fini (); }
+  ~subr_remap_ts () { fini (); }
 
   void init (unsigned int fdCount)
   {
@@ -996,7 +996,7 @@ struct subr_subsetter_t
   parsed_cs_str_vec_t		parsed_global_subrs;
   hb_vector_t<parsed_cs_str_vec_t>  parsed_local_subrs;
 
-  subr_remaps_t			remaps;
+  subr_remap_ts			remaps;
 
   private:
   typedef typename SUBRS::count_type subr_count_type;
@@ -1012,7 +1012,7 @@ hb_plan_subset_cff_fdselect (const hb_subset_plan_t *plan,
 			    unsigned int &subset_fdselect_size /* OUT */,
 			    unsigned int &subset_fdselect_format /* OUT */,
 			    hb_vector_t<CFF::code_pair_t> &fdselect_ranges /* OUT */,
-			    hb_bimap_t &fdmap /* OUT */);
+			    CFF::hb_map2_t &fdmap /* OUT */);
 
 HB_INTERNAL bool
 hb_serialize_cff_fdselect (hb_serialize_context_t *c,
