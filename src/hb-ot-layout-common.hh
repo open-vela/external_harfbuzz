@@ -33,7 +33,6 @@
 #include "hb-ot-layout.hh"
 #include "hb-open-type.hh"
 #include "hb-set.hh"
-#include "hb-bimap.hh"
 
 
 #ifndef HB_MAX_NESTING_LEVEL
@@ -1587,6 +1586,82 @@ static inline void ClassDef_serialize (hb_serialize_context_t *c,
 				       hb_array_t<const HBUINT16> klasses)
 { c->start_embed<ClassDef> ()->serialize (c, glyphs, klasses); }
 
+struct hb_map2_t
+{
+  hb_map2_t () { init (); }
+  ~hb_map2_t () { fini (); }
+
+  void init (void)
+  {
+    count = 0;
+    old_to_new_map.init ();
+    new_to_old_map.init ();
+    set.init ();
+  }
+
+  void fini (void)
+  {
+    old_to_new_map.fini ();
+    new_to_old_map.fini ();
+    set.fini ();
+  }
+
+  bool has (hb_codepoint_t id) const { return set.has (id); }
+
+  hb_codepoint_t add (hb_codepoint_t i)
+  {
+    hb_codepoint_t	v = old_to_new_map[i];
+    if (v == HB_MAP_VALUE_INVALID)
+    {
+      set.add (i);
+      v = count++;
+      old_to_new_map.set (i, v);
+      new_to_old_map.set (v, i);
+    }
+    return v;
+  }
+
+  /* returns HB_MAP_VALUE_INVALID if unmapped */
+  hb_codepoint_t operator [] (hb_codepoint_t i) const { return old_to_new (i); }
+  hb_codepoint_t old_to_new (hb_codepoint_t i) const { return old_to_new_map[i]; }
+  hb_codepoint_t new_to_old (hb_codepoint_t i) const { return new_to_old_map[i]; }
+
+  bool identity (unsigned int size)
+  {
+    hb_codepoint_t i;
+    old_to_new_map.clear ();
+    new_to_old_map.clear ();
+    set.clear ();
+    for (i = 0; i < size; i++)
+    {
+      old_to_new_map.set (i, i);
+      new_to_old_map.set (i, i);
+      set.add (i);
+    }
+    count = i;
+    return old_to_new_map.successful && new_to_old_map.successful && set.successful;
+  }
+
+  /* Optional: after finished adding all mappings in a random order,
+   * reorder outputs in the same order as the inputs. */
+  void reorder (void)
+  {
+    for (hb_codepoint_t	i = HB_SET_VALUE_INVALID, count = 0; set.next (&i); count++)
+    {
+       new_to_old_map.set (count, i);
+       old_to_new_map.set (i, count);
+    }
+  }
+
+  unsigned int get_count () const { return count; }
+  unsigned int get_bits () const { return count? hb_bit_storage (count - 1): 0; }
+
+  protected:
+  unsigned int  count;
+  hb_map_t	old_to_new_map;
+  hb_map_t	new_to_old_map;
+  hb_set_t	set;
+};
 
 /*
  * Item Variation Store
@@ -1666,9 +1741,8 @@ struct VarRegionList
   bool serialize (hb_serialize_context_t *c, const VarRegionList *src)
   {
     TRACE_SERIALIZE (this);
-    unsigned int size = src->get_size ();
-    if (unlikely (!c->allocate_size<VarRegionList> (size))) return_trace (false);
-    memcpy (this, src, size);
+    if (unlikely (!c->allocate_size<VarRegionList> (src->get_size ()))) return_trace (false);
+    memcpy (this, src, src->get_size ());
     return_trace (true);
   }
 
@@ -1749,7 +1823,7 @@ struct VarData
 
   bool serialize (hb_serialize_context_t *c,
 		  const VarData *src,
-		  const hb_bimap_t &remap)
+		  const hb_map2_t &remap)
   {
     TRACE_SUBSET (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
@@ -1757,14 +1831,14 @@ struct VarData
     shortCount.set (src->shortCount);
     
     unsigned int row_size = src->get_row_size ();
-    if (unlikely (!c->allocate_size<HBUINT8> (src->regionIndices.get_size () + (row_size * remap.get_count ()))))
+    if (unlikely (!c->allocate_size<HBUINT8> (src->regionIndices.get_size () + row_size * remap.get_count ())))
       return_trace (false);
 
     memcpy (&regionIndices, &src->regionIndices, src->regionIndices.get_size ());
     HBUINT8 *p = get_delta_bytes ();
     for (unsigned int i = 0; i < remap.get_count (); i++)
     {
-      memcpy (p, src->get_delta_bytes () + (row_size * remap.to_old (i)), row_size);
+      memcpy (p, src->get_delta_bytes () + remap.new_to_old (i) * row_size, row_size);
       p += row_size;
     }
 
@@ -1822,11 +1896,10 @@ struct VariationStore
 
   bool serialize (hb_serialize_context_t *c,
 		  const VariationStore *src,
-  		  const hb_array_t <hb_bimap_t> &inner_remaps)
+  		  const hb_array_t <hb_map2_t> &inner_remaps)
   {
     TRACE_SUBSET (this);
-    unsigned int size = min_size + HBUINT32::static_size * inner_remaps.length;
-    if (unlikely (!c->allocate_size<HBUINT32> (size))) return_trace (false);
+    if (unlikely (!c->extend_min (*this))) return_trace (false);
     format.set (1);
     if (unlikely (!regions.serialize (c, this)
 		    .serialize (c, &(src+src->regions)))) return_trace (false);
@@ -1835,6 +1908,9 @@ struct VariationStore
      * OffsetListOf::subset () can take a custom param to be passed to VarData::serialize ()
      */
     dataSets.len.set (inner_remaps.length);
+    if (unlikely (!c->allocate_size<HBUINT32> (inner_remaps.length)))
+      return_trace (false);
+
     for (unsigned int i = 0; i < inner_remaps.length; i++)
     {
       if (unlikely (!dataSets[i].serialize (c, this)
@@ -2241,7 +2317,6 @@ struct Device
   public:
   DEFINE_SIZE_UNION (6, b);
 };
-
 
 } /* namespace OT */
 

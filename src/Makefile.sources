@@ -41,7 +41,6 @@ HB_BASE_sources = \
 	hb-machinery.hh \
 	hb-map.cc \
 	hb-map.hh \
-	hb-bimap.hh \
 	hb-mutex.hh \
 	hb-null.hh \
 	hb-object.hh \
@@ -126,7 +125,6 @@ HB_BASE_sources = \
 	hb-ot-var-fvar-table.hh \
 	hb-ot-var-hvar-table.hh \
 	hb-ot-var-mvar-table.hh \
-	hb-ot-var-gvar-table.hh \
 	hb-ot-var.cc \
 	hb-ot-vorg-table.hh \
 	hb-set-digest.hh \

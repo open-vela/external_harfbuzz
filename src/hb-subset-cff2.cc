@@ -326,16 +326,18 @@ struct cff2_subset_plan {
       {
 	subset_localsubrs[fd].init ();
 	offsets.localSubrsInfos[fd].init ();
-
-	if (!subr_subsetter.encode_localsubrs (fd, subset_localsubrs[fd]))
-	  return false;
-
-	unsigned int dataSize = subset_localsubrs[fd].total_size ();
-	if (dataSize > 0)
+	if (fdmap.has (fd))
 	{
-	  offsets.localSubrsInfos[fd].offset = final_size;
-	  offsets.localSubrsInfos[fd].offSize = calcOffSize (dataSize);
-	  offsets.localSubrsInfos[fd].size = CFF2Subrs::calculate_serialized_size (offsets.localSubrsInfos[fd].offSize, subset_localsubrs[fd].length, dataSize);
+	  if (!subr_subsetter.encode_localsubrs (fd, subset_localsubrs[fd]))
+	    return false;
+
+	  unsigned int dataSize = subset_localsubrs[fd].total_size ();
+	  if (dataSize > 0)
+	  {
+	    offsets.localSubrsInfos[fd].offset = final_size;
+	    offsets.localSubrsInfos[fd].offSize = calcOffSize (dataSize);
+	    offsets.localSubrsInfos[fd].size = CFF2Subrs::calculate_serialized_size (offsets.localSubrsInfos[fd].offSize, subset_localsubrs[fd].length, dataSize);
+	  }
 	}
       }
     }
@@ -425,7 +427,7 @@ struct cff2_subset_plan {
   unsigned int    subset_fdselect_format;
   hb_vector_t<code_pair_t>   subset_fdselect_ranges;
 
-  hb_bimap_t   fdmap;
+  hb_map2_t   fdmap;
 
   str_buff_vec_t	    subset_charstrings;
   str_buff_vec_t	    subset_globalsubrs;
