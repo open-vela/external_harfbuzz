@@ -326,29 +326,27 @@ struct hb_sanitize_context_t :
   }
 
   bool check_range (const void *base,
-		    unsigned int len) const
+			   unsigned int len) const
   {
     const char *p = (const char *) base;
-    bool ok = !len ||
-	      (this->start <= p &&
-	       p <= this->end &&
-	       (unsigned int) (this->end - p) >= len &&
-	       this->max_ops-- > 0);
+    bool ok = this->start <= p &&
+	      p <= this->end &&
+	      (unsigned int) (this->end - p) >= len &&
+	      this->max_ops-- > 0;
 
     DEBUG_MSG_LEVEL (SANITIZE, p, this->debug_depth+1, 0,
-		     "check_range [%p..%p]"
-		     " (%d bytes) in [%p..%p] -> %s",
-		     p, p + len, len,
-		     this->start, this->end,
-		     ok ? "OK" : "OUT-OF-RANGE");
+       "check_range [%p..%p] (%d bytes) in [%p..%p] -> %s",
+       p, p + len, len,
+       this->start, this->end,
+       ok ? "OK" : "OUT-OF-RANGE");
 
     return likely (ok);
   }
 
   template <typename T>
   bool check_range (const T *base,
-		    unsigned int a,
-		    unsigned int b) const
+			   unsigned int a,
+			   unsigned int b) const
   {
     return !hb_unsigned_mul_overflows (a, b) &&
 	   this->check_range (base, a * b);
@@ -356,9 +354,9 @@ struct hb_sanitize_context_t :
 
   template <typename T>
   bool check_range (const T *base,
-		    unsigned int a,
-		    unsigned int b,
-		    unsigned int c) const
+			   unsigned int a,
+			   unsigned int b,
+			   unsigned int c) const
   {
     return !hb_unsigned_mul_overflows (a, b) &&
 	   this->check_range (base, a * b, c);
@@ -682,11 +680,7 @@ template <typename Type>
 struct BEInt<Type, 1>
 {
   public:
-  BEInt<Type, 1>& operator = (Type V)
-  {
-    v = V;
-    return *this;
-  }
+  void set (Type V)      { v = V; }
   operator Type () const { return v; }
   private: uint8_t v;
 };
@@ -694,11 +688,10 @@ template <typename Type>
 struct BEInt<Type, 2>
 {
   public:
-  BEInt<Type, 2>& operator = (Type V)
+  void set (Type V)
   {
     v[0] = (V >>  8) & 0xFF;
     v[1] = (V      ) & 0xFF;
-    return *this;
   }
   operator Type () const
   {
@@ -723,12 +716,11 @@ template <typename Type>
 struct BEInt<Type, 3>
 {
   public:
-  BEInt<Type, 3>& operator = (Type V)
+  void set (Type V)
   {
     v[0] = (V >> 16) & 0xFF;
     v[1] = (V >>  8) & 0xFF;
     v[2] = (V      ) & 0xFF;
-    return *this;
   }
   operator Type () const
   {
@@ -742,13 +734,13 @@ template <typename Type>
 struct BEInt<Type, 4>
 {
   public:
-  BEInt<Type, 4>& operator = (Type V)
+  typedef Type type;
+  void set (Type V)
   {
     v[0] = (V >> 24) & 0xFF;
     v[1] = (V >> 16) & 0xFF;
     v[2] = (V >>  8) & 0xFF;
     v[3] = (V      ) & 0xFF;
-    return *this;
   }
   operator Type () const
   {
@@ -822,7 +814,7 @@ struct hb_lazy_loader_t : hb_data_wrapper_t<Data, WheresData>
 
   const Returned * operator -> () const { return get (); }
   const Returned & operator * () const  { return *get (); }
-  explicit operator bool () const
+  explicit_operator bool () const
   { return get_stored () != Funcs::get_null (); }
   template <typename C> operator const C * () const { return get (); }
 
