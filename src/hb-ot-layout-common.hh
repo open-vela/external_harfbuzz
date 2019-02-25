@@ -33,6 +33,7 @@
 #include "hb-ot-layout.hh"
 #include "hb-open-type.hh"
 #include "hb-set.hh"
+#include "hb-bimap.hh"
 
 
 #ifndef HB_MAX_NESTING_LEVEL
@@ -64,6 +65,7 @@ namespace OT {
 
 
 #define NOT_COVERED		((unsigned int) -1)
+
 
 
 /*
@@ -825,9 +827,8 @@ struct CoverageFormat1
     return i;
   }
 
-  template <typename Iterator,
-	    hb_enable_if (hb_is_sorted_iterator_of (Iterator, const GlyphID))>
-  bool serialize (hb_serialize_context_t *c, Iterator glyphs)
+  bool serialize (hb_serialize_context_t *c,
+		  hb_array_t<const GlyphID> glyphs)
   {
     TRACE_SERIALIZE (this);
     return_trace (glyphArray.serialize (c, glyphs));
@@ -853,17 +854,19 @@ struct CoverageFormat1
 
   template <typename set_t>
   bool add_coverage (set_t *glyphs) const
-  { return glyphs->add_sorted_array (glyphArray.arrayZ, glyphArray.len); }
+  {
+    return glyphs->add_sorted_array (glyphArray.arrayZ, glyphArray.len);
+  }
 
   public:
   /* Older compilers need this to be public. */
-  struct iter_t
-  {
+  struct Iter {
     void init (const struct CoverageFormat1 &c_) { c = &c_; i = 0; }
     void fini () {}
-    bool more () const { return i < c->glyphArray.len; }
+    bool more () { return i < c->glyphArray.len; }
     void next () { i++; }
-    hb_codepoint_t get_glyph () const { return c->glyphArray[i]; }
+    hb_codepoint_t get_glyph () { return c->glyphArray[i]; }
+    unsigned int get_coverage () { return i; }
 
     private:
     const struct CoverageFormat1 *c;
@@ -892,23 +895,20 @@ struct CoverageFormat2
 	   NOT_COVERED;
   }
 
-  template <typename Iterator,
-	    hb_enable_if (hb_is_sorted_iterator_of (Iterator, const GlyphID))>
-  bool serialize (hb_serialize_context_t *c, Iterator glyphs)
+  bool serialize (hb_serialize_context_t *c,
+		  hb_array_t<const GlyphID> glyphs)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
 
-    if (unlikely (!glyphs))
+    if (unlikely (!glyphs.length))
     {
       rangeRecord.len.set (0);
       return_trace (true);
     }
-    /* TODO(iter) Port to non-random-access iterator interface. */
-    unsigned int count = glyphs.len ();
 
     unsigned int num_ranges = 1;
-    for (unsigned int i = 1; i < count; i++)
+    for (unsigned int i = 1; i < glyphs.length; i++)
       if (glyphs[i - 1] + 1 != glyphs[i])
 	num_ranges++;
     rangeRecord.len.set (num_ranges);
@@ -917,7 +917,7 @@ struct CoverageFormat2
     unsigned int range = 0;
     rangeRecord[range].start = glyphs[0];
     rangeRecord[range].value.set (0);
-    for (unsigned int i = 1; i < count; i++)
+    for (unsigned int i = 1; i < glyphs.length; i++)
     {
       if (glyphs[i - 1] + 1 != glyphs[i])
       {
@@ -973,7 +973,7 @@ struct CoverageFormat2
 
   public:
   /* Older compilers need this to be public. */
-  struct iter_t
+  struct Iter
   {
     void init (const CoverageFormat2 &c_)
     {
@@ -988,7 +988,7 @@ struct CoverageFormat2
       }
     }
     void fini () {}
-    bool more () const { return i < c->rangeRecord.len; }
+    bool more () { return i < c->rangeRecord.len; }
     void next ()
     {
       if (j >= c->rangeRecord[i].end)
@@ -996,25 +996,23 @@ struct CoverageFormat2
 	i++;
 	if (more ())
 	{
-	  unsigned int old = coverage;
+	  hb_codepoint_t old = j;
 	  j = c->rangeRecord[i].start;
-	  coverage = c->rangeRecord[i].value;
-	  if (unlikely (coverage != old + 1))
+	  if (unlikely (j <= old))
 	  {
-	    /* Broken table. Skip. Important to avoid DoS.
-	     * Also, our callers depend on coverage being
-	     * consecutive and monotonically increasing,
-	     * ie. iota(). */
+	    /* Broken table. Skip. Important to avoid DoS. */
 	   i = c->rangeRecord.len;
 	   return;
 	  }
+	  coverage = c->rangeRecord[i].value;
 	}
 	return;
       }
       coverage++;
       j++;
     }
-    hb_codepoint_t get_glyph () const { return j; }
+    hb_codepoint_t get_glyph () { return j; }
+    unsigned int get_coverage () { return coverage; }
 
     private:
     const struct CoverageFormat2 *c;
@@ -1035,15 +1033,6 @@ struct CoverageFormat2
 
 struct Coverage
 {
-  /* Has interface. */
-  static constexpr unsigned SENTINEL = NOT_COVERED;
-  typedef unsigned int value_t;
-  value_t operator [] (hb_codepoint_t k) const { return get (k); }
-  bool has (hb_codepoint_t k) const { return (*this)[k] != SENTINEL; }
-  /* Predicate. */
-  bool operator () (hb_codepoint_t k) const { return has (k); }
-
-  unsigned int get (hb_codepoint_t k) const { return get_coverage (k); }
   unsigned int get_coverage (hb_codepoint_t glyph_id) const
   {
     switch (u.format) {
@@ -1053,20 +1042,17 @@ struct Coverage
     }
   }
 
-  template <typename Iterator,
-	    hb_enable_if (hb_is_sorted_iterator_of (Iterator, const GlyphID))>
-  bool serialize (hb_serialize_context_t *c, Iterator glyphs)
+  bool serialize (hb_serialize_context_t *c,
+		  hb_array_t<const GlyphID> glyphs)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
 
-    /* TODO(iter) Port to non-random-access iterator interface. */
-    unsigned int count = glyphs.len ();
     unsigned int num_ranges = 1;
-    for (unsigned int i = 1; i < count; i++)
+    for (unsigned int i = 1; i < glyphs.length; i++)
       if (glyphs[i - 1] + 1 != glyphs[i])
 	num_ranges++;
-    u.format.set (count * 2 < num_ranges * 3 ? 1 : 2);
+    u.format.set (glyphs.length * 2 < num_ranges * 3 ? 1 : 2);
 
     switch (u.format)
     {
@@ -1120,10 +1106,9 @@ struct Coverage
     }
   }
 
-  struct iter_t : hb_iter_with_fallback_t<iter_t, hb_codepoint_t>
+  struct Iter
   {
-    static constexpr bool is_sorted_iterator = true;
-    iter_t (const Coverage &c_ = Null(Coverage))
+    Iter (const Coverage &c_)
     {
       memset (this, 0, sizeof (*this));
       format = c_.u.format;
@@ -1134,7 +1119,7 @@ struct Coverage
       default:				     return;
       }
     }
-    bool __more__ () const
+    bool more ()
     {
       switch (format)
       {
@@ -1143,7 +1128,7 @@ struct Coverage
       default:return false;
       }
     }
-    void __next__ ()
+    void next ()
     {
       switch (format)
       {
@@ -1152,10 +1137,7 @@ struct Coverage
       default:			 break;
       }
     }
-    typedef hb_codepoint_t __item_t__;
-    __item_t__ __item__ () const { return get_glyph (); }
-
-    hb_codepoint_t get_glyph () const
+    hb_codepoint_t get_glyph ()
     {
       switch (format)
       {
@@ -1164,15 +1146,23 @@ struct Coverage
       default:return 0;
       }
     }
+    unsigned int get_coverage ()
+    {
+      switch (format)
+      {
+      case 1: return u.format1.get_coverage ();
+      case 2: return u.format2.get_coverage ();
+      default:return -1;
+      }
+    }
 
     private:
     unsigned int format;
     union {
-    CoverageFormat2::iter_t	format2; /* Put this one first since it's larger; helps shut up compiler. */
-    CoverageFormat1::iter_t	format1;
+    CoverageFormat2::Iter	format2; /* Put this one first since it's larger; helps shut up compiler. */
+    CoverageFormat1::Iter	format1;
     } u;
   };
-  iter_t iter () const { return iter_t (*this); }
 
   protected:
   union {
@@ -1204,13 +1194,13 @@ struct ClassDefFormat1
   }
 
   bool serialize (hb_serialize_context_t *c,
-		  hb_array_t<const GlyphID> glyphs,
+		  hb_array_t<const HBUINT16> glyphs,
 		  hb_array_t<const HBUINT16> klasses)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
 
-    if (unlikely (!glyphs))
+    if (unlikely (!glyphs.length))
     {
       startGlyph.set (0);
       classValue.len.set (0);
@@ -1235,22 +1225,22 @@ struct ClassDefFormat1
     TRACE_SUBSET (this);
     const hb_set_t &glyphset = *c->plan->glyphset ();
     const hb_map_t &glyph_map = *c->plan->glyph_map;
-    hb_sorted_vector_t<GlyphID> glyphs;
+    hb_vector_t<GlyphID> glyphs;
     hb_vector_t<HBUINT16> klasses;
 
     hb_codepoint_t start = startGlyph;
     hb_codepoint_t end   = start + classValue.len;
     for (hb_codepoint_t g = start; g < end; g++)
     {
-      if (!glyphset.has (g)) continue;
       unsigned int value = classValue[g - start];
       if (!value) continue;
+      if (!glyphset.has (g)) continue;
       glyphs.push()->set (glyph_map[g]);
       klasses.push()->set (value);
     }
     c->serializer->propagate_error (glyphs, klasses);
     ClassDef_serialize (c->serializer, glyphs, klasses);
-    return_trace ((bool) glyphs);
+    return_trace (glyphs.length);
   }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -1340,13 +1330,13 @@ struct ClassDefFormat2
   }
 
   bool serialize (hb_serialize_context_t *c,
-		  hb_array_t<const GlyphID> glyphs,
+		  hb_array_t<const HBUINT16> glyphs,
 		  hb_array_t<const HBUINT16> klasses)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
 
-    if (unlikely (!glyphs))
+    if (unlikely (!glyphs.length))
     {
       rangeRecord.len.set (0);
       return_trace (true);
@@ -1401,7 +1391,7 @@ struct ClassDefFormat2
     }
     c->serializer->propagate_error (glyphs, klasses);
     ClassDef_serialize (c->serializer, glyphs, klasses);
-    return_trace ((bool) glyphs);
+    return_trace (glyphs.length);
   }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -1479,15 +1469,6 @@ struct ClassDefFormat2
 
 struct ClassDef
 {
-  /* Has interface. */
-  static constexpr unsigned SENTINEL = 0;
-  typedef unsigned int value_t;
-  value_t operator [] (hb_codepoint_t k) const { return get (k); }
-  bool has (hb_codepoint_t k) const { return (*this)[k] != SENTINEL; }
-  /* Projection. */
-  hb_codepoint_t operator () (hb_codepoint_t k) const { return get (k); }
-
-  unsigned int get (hb_codepoint_t k) const { return get_class (k); }
   unsigned int get_class (hb_codepoint_t glyph_id) const
   {
     switch (u.format) {
@@ -1505,7 +1486,7 @@ struct ClassDef
     if (unlikely (!c->extend_min (*this))) return_trace (false);
 
     unsigned int format = 2;
-    if (likely (glyphs))
+    if (glyphs.length)
     {
       hb_codepoint_t glyph_min = glyphs[0];
       hb_codepoint_t glyph_max = glyphs[glyphs.length - 1];
@@ -1605,83 +1586,6 @@ static inline void ClassDef_serialize (hb_serialize_context_t *c,
 				       hb_array_t<const GlyphID> glyphs,
 				       hb_array_t<const HBUINT16> klasses)
 { c->start_embed<ClassDef> ()->serialize (c, glyphs, klasses); }
-
-/* Bi-directional map.
- * nww ids are assigned incrementally & contiguous; old ids may be random & sparse
- * all mappings unique & no duplicate */
-struct hb_map2_t
-{
-  hb_map2_t () { init (); }
-  ~hb_map2_t () { fini (); }
-
-  void init (void)
-  {
-    count = 0;
-    old_to_new_map.init ();
-    new_to_old_map.init ();
-  }
-
-  void fini (void)
-  {
-    old_to_new_map.fini ();
-    new_to_old_map.fini ();
-  }
-
-  bool has (hb_codepoint_t _old) const { return old_to_new_map.has (_old); }
-
-  hb_codepoint_t add (hb_codepoint_t _old)
-  {
-    hb_codepoint_t	_new = old_to_new_map[_old];
-    if (_new == HB_MAP_VALUE_INVALID)
-    {
-      _new = count++;
-      old_to_new_map.set (_old, _new);
-      new_to_old_map.set (_new, _old);
-    }
-    return _new;
-  }
-
-  /* returns HB_MAP_VALUE_INVALID if unmapped */
-  hb_codepoint_t operator [] (hb_codepoint_t _old) const { return old_to_new (_old); }
-  hb_codepoint_t old_to_new (hb_codepoint_t _old) const { return old_to_new_map[_old]; }
-  hb_codepoint_t new_to_old (hb_codepoint_t _new) const { return new_to_old_map[_new]; }
-
-  bool identity (unsigned int size)
-  {
-    hb_codepoint_t i;
-    old_to_new_map.clear ();
-    new_to_old_map.clear ();
-    for (i = 0; i < size; i++)
-    {
-      old_to_new_map.set (i, i);
-      new_to_old_map.set (i, i);
-    }
-    count = i;
-    return old_to_new_map.successful && new_to_old_map.successful;
-  }
-
-  /* Optional: after finished adding all mappings in a random order,
-   * reassign new ids to old ids so that they are in the same order. */
-  void reorder (void)
-  {
-    hb_codepoint_t	_new = 0;
-    for (hb_codepoint_t _old = 0; _new < count; _old++)
-    {
-      if (!has (_old)) continue;
-      new_to_old_map.set (_new, _old);
-      old_to_new_map.set (_old, _new);
-      _old++;
-      _new++;
-    }
-  }
-
-  unsigned int get_count () const { return count; }
-
-  protected:
-  unsigned int  count;
-  hb_map_t	old_to_new_map;
-  hb_map_t	new_to_old_map;
-};
 
 /*
  * Item Variation Store
@@ -1844,7 +1748,7 @@ struct VarData
 
   bool serialize (hb_serialize_context_t *c,
 		  const VarData *src,
-		  const hb_map2_t &remap)
+		  const hb_bimap_t &remap)
   {
     TRACE_SUBSET (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
@@ -1859,7 +1763,7 @@ struct VarData
     HBUINT8 *p = get_delta_bytes ();
     for (unsigned int i = 0; i < remap.get_count (); i++)
     {
-      memcpy (p, src->get_delta_bytes () + (row_size * remap.new_to_old (i)), row_size);
+      memcpy (p, src->get_delta_bytes () + (row_size * remap.to_old (i)), row_size);
       p += row_size;
     }
 
@@ -1917,7 +1821,7 @@ struct VariationStore
 
   bool serialize (hb_serialize_context_t *c,
 		  const VariationStore *src,
-  		  const hb_array_t <hb_map2_t> &inner_remaps)
+  		  const hb_array_t <hb_bimap_t> &inner_remaps)
   {
     TRACE_SUBSET (this);
     unsigned int size = min_size + HBUINT32::static_size * inner_remaps.length;
