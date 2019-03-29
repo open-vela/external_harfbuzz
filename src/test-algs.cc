@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Adobe Inc.
+ * Copyright © 2019  Facebook, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -21,34 +21,30 @@
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
- * Adobe Author(s): Michiharu Ariza
+ * Facebook Author(s): Behdad Esfahbod
  */
 
-#include "hb-ot-hmtx-table.hh"
-#include "hb-ot-glyf-table.hh"
+#include "hb.hh"
+#include "hb-algs.hh"
 
-namespace OT {
 
-int hmtxvmtx_accelerator_base_t::get_side_bearing_var_tt (hb_font_t *font, hb_codepoint_t glyph, bool vertical)
+int
+main (int argc, char **argv)
 {
-  glyf::accelerator_t glyf_accel;
-  glyf_accel.init (font->face);
+  int i = 1;
+  auto p = hb_pair (1, i);
 
-  int side_bearing = glyf_accel.get_side_bearing_var (glyph, font->coords, font->num_coords, vertical);
-  glyf_accel.fini ();
+  p.second = 2;
+  assert (i == 2);
 
-  return side_bearing;
-}
+  const int c = 3;
+  auto pc = hb_pair (1, c);
+  assert (pc.second == 3);
 
-unsigned int hmtxvmtx_accelerator_base_t::get_advance_var_tt (hb_font_t *font, hb_codepoint_t glyph, bool vertical)
-{
-  glyf::accelerator_t glyf_accel;
-  glyf_accel.init (font->face);
+  auto q = p;
+  assert (&q != &p);
+  q.second = 4;
+  assert (i == 4);
 
-  unsigned int advance = glyf_accel.get_advance_var (glyph, font->coords, font->num_coords, vertical);
-  glyf_accel.fini ();
-
-  return advance;
-}
-
+  return 0;
 }
