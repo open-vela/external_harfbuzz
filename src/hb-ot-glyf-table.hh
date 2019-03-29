@@ -191,7 +191,7 @@ struct glyf
 	point2 = p[1];
       }
     }
- 
+
     void transform_points (contour_point_vector_t &points) const
     {
       float matrix[4];
@@ -219,7 +219,7 @@ struct glyf
     {
       matrix[0] = matrix[3] = 1.f;
       matrix[1] = matrix[2] = 0.f;
-      
+
       int tx, ty;
       const HBINT8 *p = &StructAfter<const HBINT8> (glyphIndex);
       if (flags & ARG_1_AND_2_ARE_WORDS)
@@ -509,7 +509,7 @@ struct glyf
       points_.resize (num_points + PHANTOM_COUNT);
       for (unsigned int i = 0; i < points_.length; i++) points_[i].init ();
       if ((num_contours <= 0) || phantom_only) return true;
-		
+
       /* Read simple glyph points if !phantom_only */
       end_points_.resize (num_contours);
 
@@ -625,7 +625,7 @@ struct glyf
 
 	  /* Apply component transformation & translation */
 	  composite.current->transform_points (comp_points);
-	  
+
 	  /* Apply translatation from gvar */
 	  comp_points.translate (points[comp_index]);
 
