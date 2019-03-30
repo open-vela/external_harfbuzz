@@ -33,7 +33,6 @@
 #include "hb-ot-layout.hh"
 #include "hb-open-type.hh"
 #include "hb-set.hh"
-#include "hb-bimap.hh"
 
 
 #ifndef HB_MAX_NESTING_LEVEL
@@ -1683,16 +1682,6 @@ struct VarRegionList
 		  axesZ.sanitize (c, (unsigned int) axisCount * (unsigned int) regionCount));
   }
 
-  bool serialize (hb_serialize_context_t *c, const VarRegionList *src)
-  {
-    TRACE_SERIALIZE (this);
-    unsigned int size = src->get_size ();
-    if (unlikely (!c->allocate_size<VarRegionList> (size))) return_trace (false);
-    memcpy (this, src, size);
-    return_trace (true);
-  }
-
-  unsigned int get_size () const { return min_size + VarRegionAxis::static_size * axisCount * regionCount; }
   unsigned int get_region_count () const { return regionCount; }
 
   protected:
@@ -1709,6 +1698,9 @@ struct VarData
   unsigned int get_region_index_count () const
   { return regionIndices.len; }
 
+  unsigned int get_row_size () const
+  { return shortCount + regionIndices.len; }
+
   unsigned int get_size () const
   { return itemCount * get_row_size (); }
 
@@ -1722,7 +1714,7 @@ struct VarData
    unsigned int count = regionIndices.len;
    unsigned int scount = shortCount;
 
-   const HBUINT8 *bytes = get_delta_bytes ();
+   const HBUINT8 *bytes = &StructAfter<HBUINT8> (regionIndices);
    const HBUINT8 *row = bytes + inner * (scount + count);
 
    float delta = 0.;
@@ -1762,77 +1754,9 @@ struct VarData
     return_trace (c->check_struct (this) &&
 		  regionIndices.sanitize (c) &&
 		  shortCount <= regionIndices.len &&
-		  c->check_range (get_delta_bytes (),
+		  c->check_range (&StructAfter<HBUINT8> (regionIndices),
 				  itemCount,
 				  get_row_size ()));
-  }
-
-  bool serialize (hb_serialize_context_t *c,
-		  const VarData *src,
-		  const hb_bimap_t &remap)
-  {
-    TRACE_SUBSET (this);
-    if (unlikely (!c->extend_min (*this))) return_trace (false);
-    itemCount = remap.get_count ();
-    
-    /* Optimize short count */
-    unsigned int short_count = src->shortCount;
-    for (; short_count > 0; short_count--)
-      for (unsigned int i = 0; i < remap.get_count (); i++)
-      {
-	unsigned int old = remap.to_old (i);
-	if (unlikely (old >= src->itemCount)) return_trace (false);
-	int16_t delta = src->get_item_delta (old, short_count - 1);
-	if (delta < -128 || 127 < delta) goto found_short;
-      }
-    
-found_short:
-    shortCount = short_count;
-    regionIndices.len = src->regionIndices.len;
-
-    unsigned int size = src->regionIndices.get_size () - HBUINT16::static_size/*regionIndices.len*/ + (get_row_size () * itemCount);
-    if (unlikely (!c->allocate_size<HBUINT8> (size)))
-      return_trace (false);
-
-    memcpy (&regionIndices[0], &src->regionIndices[0], src->regionIndices.get_size ()-HBUINT16::static_size);
-
-    for (unsigned int i = 0; i < itemCount; i++)
-      for (unsigned int r = 0; r < regionIndices.len; r++)
-      {
-      	hb_codepoint_t	old = remap.to_old (i);
-      	if (unlikely (old >= src->itemCount)) return_trace (false);
-      	set_item_delta (i, r, src->get_item_delta (old, r));
-      }
-
-    return_trace (true);
-  }
-
-  protected:
-  unsigned int get_row_size () const
-  { return shortCount + regionIndices.len; }
-
-  const HBUINT8 *get_delta_bytes () const
-  { return &StructAfter<HBUINT8> (regionIndices); }
-
-  HBUINT8 *get_delta_bytes ()
-  { return &StructAfter<HBUINT8> (regionIndices); }
-
-  int16_t get_item_delta (unsigned int item, unsigned int region) const
-  {
-    const HBINT8 *p = (const HBINT8 *)get_delta_bytes () + item * get_row_size ();
-    if (region < shortCount)
-      return ((const HBINT16 *)p)[region];
-    else
-      return (p + HBINT16::static_size * shortCount)[region - shortCount];
-  }
-
-  void set_item_delta (unsigned int item, unsigned int region, int16_t delta)
-  {
-    HBINT8 *p = (HBINT8 *)get_delta_bytes () + item * get_row_size ();
-    if (region < shortCount)
-      ((HBINT16 *)p)[region] = delta;
-    else
-      (p + HBINT16::static_size * shortCount)[region - shortCount] = delta;
   }
 
   protected:
@@ -1874,31 +1798,6 @@ struct VariationStore
 		  dataSets.sanitize (c, this));
   }
 
-  bool serialize (hb_serialize_context_t *c,
-		  const VariationStore *src,
-  		  const hb_array_t <hb_bimap_t> &inner_remaps)
-  {
-    TRACE_SUBSET (this);
-    unsigned int size = min_size + HBUINT32::static_size * inner_remaps.length;
-    if (unlikely (!c->allocate_size<HBUINT32> (size))) return_trace (false);
-    format = 1;
-    if (unlikely (!regions.serialize (c, this)
-		    .serialize (c, &(src+src->regions)))) return_trace (false);
-
-    /* TODO: The following code could be simplified when
-     * OffsetListOf::subset () can take a custom param to be passed to VarData::serialize ()
-     */
-    dataSets.len = inner_remaps.length;
-    for (unsigned int i = 0; i < inner_remaps.length; i++)
-    {
-      if (unlikely (!dataSets[i].serialize (c, this)
-		      .serialize (c, &(src+src->dataSets[i]), inner_remaps[i])))
-      	return_trace (false);
-    }
-    
-    return_trace (true);
-  }
-
   unsigned int get_region_index_count (unsigned int ivs) const
   { return (this+dataSets[ivs]).get_region_index_count (); }
 
@@ -1910,10 +1809,6 @@ struct VariationStore
     (this+dataSets[ivs]).get_scalars (coords, coord_count, this+regions,
                                       &scalars[0], num_scalars);
   }
-
-  const VarRegionList &get_regions () const { return this+regions; }
-
-  unsigned int get_sub_table_count () const { return dataSets.len; }
 
   protected:
   HBUINT16				format;

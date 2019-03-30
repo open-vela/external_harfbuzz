@@ -31,6 +31,7 @@
 
 #include "hb.hh"
 #include "hb-blob.hh"
+#include "hb-map.hh"
 
 
 /*
@@ -39,6 +40,30 @@
 
 struct hb_serialize_context_t
 {
+  typedef unsigned objidx_t;
+
+  struct range_t
+  {
+    char *head, *tail;
+  };
+
+  struct object_t : range_t
+  {
+    void fini () { links.fini (); }
+
+    struct link_t
+    {
+      bool wide: 1;
+      unsigned offset : 31;
+      objidx_t objidx;
+    };
+
+    hb_vector_t<link_t> links;
+  };
+
+  range_t snapshot () { range_t s = {head, tail} ; return s; }
+
+
   hb_serialize_context_t (void *start_, unsigned int size)
   {
     this->start = (char *) start_;
@@ -51,8 +76,15 @@ struct hb_serialize_context_t
   void reset ()
   {
     this->successful = true;
+    this->ran_out_of_room = false;
     this->head = this->start;
+    this->tail = this->end;
     this->debug_depth = 0;
+
+    this->current.reset ();
+    this->packed.reset ();
+    this->packed.push ()->head = this->end;
+    this->packed_map.reset ();
   }
 
   bool propagate_error (bool e)
@@ -61,15 +93,10 @@ struct hb_serialize_context_t
   { return this->successful = this->successful && !obj.in_error (); }
   template <typename T> bool propagate_error (const T *obj)
   { return this->successful = this->successful && !obj->in_error (); }
-  template <typename T1, typename T2> bool propagate_error (T1 &o1, T2 &o2)
-  { return propagate_error (o1) && propagate_error (o2); }
-  template <typename T1, typename T2> bool propagate_error (T1 *o1, T2 *o2)
+  template <typename T1, typename T2> bool propagate_error (T1 &&o1, T2 &&o2)
   { return propagate_error (o1) && propagate_error (o2); }
   template <typename T1, typename T2, typename T3>
-  bool propagate_error (T1 &o1, T2 &o2, T3 &o3)
-  { return propagate_error (o1) && propagate_error (o2, o3); }
-  template <typename T1, typename T2, typename T3>
-  bool propagate_error (T1 *o1, T2 *o2, T3 *o3)
+  bool propagate_error (T1 &&o1, T2 &&o2, T3 &&o3)
   { return propagate_error (o1) && propagate_error (o2, o3); }
 
   /* To be called around main operation. */
@@ -81,18 +108,80 @@ struct hb_serialize_context_t
 		     this->start, this->end,
 		     (unsigned long) (this->end - this->start));
 
-    return start_embed<Type> ();
+    assert (!current.length);
+    return push<Type> ();
   }
   void end_serialize ()
   {
     DEBUG_MSG_LEVEL (SERIALIZE, this->start, 0, -1,
-		     "end [%p..%p] serialized %d bytes; %s",
+		     "end [%p..%p] serialized %u bytes; %s",
 		     this->start, this->end,
-		     (int) (this->head - this->start),
+		     (unsigned) (this->head - this->start),
 		     this->successful ? "successful" : "UNSUCCESSFUL");
+
+    /* TODO Propagate errors. */
+
+    assert (current.length == 1);
+
+    /* Only "pack" if there exist other objects... Otherwise, don't bother.
+     * Saves a copy. */
+    if (packed.length > 1)
+      pop_pack ();
   }
 
-  unsigned int length () const { return this->head - this->start; }
+  template <typename Type>
+  Type *push ()
+  {
+    object_t obj;
+    obj.head = head;
+    obj.tail = tail;
+    current.push (obj);
+    return start_embed<Type> ();
+  }
+  void pop_discard ()
+  {
+    revert (current.pop ());
+  }
+  objidx_t pop_pack ()
+  {
+    object_t obj = current.pop ();
+
+    unsigned len = head - obj.head;
+
+    tail -= len;
+    memmove (tail, obj.head, len);
+    head = obj.head;
+
+    obj.head = tail;
+    obj.tail = tail + len;
+
+    packed.push (hb_move (obj));
+
+    /* TODO Handle error. */
+    if (unlikely (packed.in_error ()))
+      return 0;
+
+    return packed.length - 1;
+  }
+
+  void revert (range_t snap)
+  {
+    assert (snap.head <= head);
+    assert (tail <= snap.tail);
+    head = snap.head;
+    tail = snap.tail;
+    discard_stale_objects ();
+  }
+
+  void discard_stale_objects ()
+  {
+    while (packed.length > 1 &&
+	   packed.tail ().head < tail)
+      packed.pop ();
+    assert (packed.tail ().head == tail);
+  }
+
+  unsigned int length () const { return this->head - current.tail ().head; }
 
   void align (unsigned int alignment)
   {
@@ -111,7 +200,11 @@ struct hb_serialize_context_t
   template <typename Type>
   Type *allocate_size (unsigned int size)
   {
-    if (unlikely (!this->successful || this->end - this->head < ptrdiff_t (size))) {
+    if (unlikely (!this->successful)) return nullptr;
+
+    if (this->tail - this->head < ptrdiff_t (size))
+    {
+      this->ran_out_of_room = true;
       this->successful = false;
       return nullptr;
     }
@@ -183,10 +276,23 @@ struct hb_serialize_context_t
 			   (char *) b.arrayZ, free);
   }
 
-  public:
+  public: /* TODO Make private. */
+  char *start, *head, *tail, *end;
   unsigned int debug_depth;
-  char *start, *end, *head;
   bool successful;
+  bool ran_out_of_room;
+
+  private:
+
+  /* Stack of currently under construction objects. */
+  /* Note.  We store the "end - tail" distance in the length member of these. */
+  hb_vector_t<object_t> current;
+
+  /* Stack of packed objects.  Object 0 is always nil object. */
+  hb_vector_t<object_t> packed;
+
+  /* Map view of packed objects. */
+  hb_hashmap_t<const object_t *, objidx_t> packed_map;
 };
 
 
