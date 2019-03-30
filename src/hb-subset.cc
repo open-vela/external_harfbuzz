@@ -45,8 +45,6 @@
 #include "hb-ot-vorg-table.hh"
 #include "hb-ot-layout-gsub-table.hh"
 #include "hb-ot-layout-gpos-table.hh"
-#include "hb-ot-var-gvar-table.hh"
-#include "hb-ot-var-hvar-table.hh"
 
 
 static unsigned int
@@ -85,7 +83,7 @@ _subset2 (hb_subset_plan_t *plan)
     hb_serialize_context_t serializer ((void *) buf, buf_size);
     hb_subset_context_t c (plan, &serializer);
     result = table->subset (&c);
-    if (serializer.in_error ())
+    if (serializer.ran_out_of_room)
     {
       buf_size += (buf_size >> 1) + 32;
       DEBUG_MSG(SUBSET, nullptr, "OT::%c%c%c%c ran out of room; reallocating to %u bytes.", HB_UNTAG (tag), buf_size);
@@ -96,6 +94,11 @@ _subset2 (hb_subset_plan_t *plan)
       }
       goto retry;
     }
+    if (serializer.in_error ())
+    {
+      abort ();
+    }
+
     if (result)
     {
       hb_blob_t *dest_blob = serializer.copy_blob ();
@@ -199,15 +202,6 @@ _subset_table (hb_subset_plan_t *plan,
       break;
     case HB_OT_TAG_GPOS:
       result = _subset2<const OT::GPOS> (plan);
-      break;
-    case HB_OT_TAG_gvar:
-      result = _subset2<const OT::gvar> (plan);
-      break;
-    case HB_OT_TAG_HVAR:
-      result = _subset2<const OT::HVAR> (plan);
-      break;
-    case HB_OT_TAG_VVAR:
-      result = _subset2<const OT::VVAR> (plan);
       break;
 
     default:
