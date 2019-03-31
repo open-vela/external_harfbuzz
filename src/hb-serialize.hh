@@ -156,16 +156,6 @@ struct hb_serialize_context_t
   Type *extend (Type &obj) { return extend_size (obj, obj.get_size ()); }
 
   /* Output routines. */
-  template <typename Type>
-  Type *copy () const
-  {
-    assert (this->successful);
-    unsigned int len = this->head - this->start;
-    void *p = malloc (len);
-    if (p)
-      memcpy (p, this->start, len);
-    return reinterpret_cast<Type *> (p);
-  }
   hb_bytes_t copy_bytes () const
   {
     assert (this->successful);
@@ -177,13 +167,15 @@ struct hb_serialize_context_t
       return hb_bytes_t ();
     return hb_bytes_t ((char *) p, len);
   }
+  template <typename Type>
+  Type *copy () const
+  { return reinterpret_cast<Type *> ((char *) copy_bytes ().arrayZ); }
   hb_blob_t *copy_blob () const
   {
-    assert (this->successful);
-    return hb_blob_create (this->start,
-			   this->head - this->start,
-			   HB_MEMORY_MODE_DUPLICATE,
-			   nullptr, nullptr);
+    hb_bytes_t b = copy_bytes ();
+    return hb_blob_create (b.arrayZ, b.length,
+			   HB_MEMORY_MODE_WRITABLE,
+			   (char *) b.arrayZ, free);
   }
 
   public:
