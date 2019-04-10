@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Adobe Inc.
+ * Copyright © 2018  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -21,34 +21,38 @@
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
- * Adobe Author(s): Michiharu Ariza
+ * Google Author(s): Garret Rieger
  */
 
-#include "hb-ot-hmtx-table.hh"
-#include "hb-ot-glyf-table.hh"
+#include "hb-test.h"
+#include "hb-subset-test.h"
 
-namespace OT {
-
-int hmtxvmtx_accelerator_base_t::get_side_bearing_var_tt (hb_font_t *font, hb_codepoint_t glyph, bool vertical)
+static void
+test_subset_nameids (void)
 {
-  glyf::accelerator_t glyf_accel;
-  glyf_accel.init (font->face);
+  hb_face_t *face_origin = hb_test_open_font_file ("fonts/nameID.origin.ttf");
+  hb_face_t *face_expected = hb_test_open_font_file ("fonts/nameID.expected.ttf");
 
-  int side_bearing = glyf_accel.get_side_bearing_var (glyph, font->coords, font->num_coords, vertical);
-  glyf_accel.fini ();
+  hb_set_t *name_ids = hb_set_create();
+  hb_face_t *face_subset;
+  hb_set_add (name_ids, 0);
+  hb_set_add (name_ids, 9);
+  face_subset = hb_subset_test_create_subset (face_origin, hb_subset_test_create_input_from_nameids (name_ids));
+  hb_set_destroy (name_ids);
 
-  return side_bearing;
+  hb_subset_test_check (face_expected, face_subset, HB_TAG ('n','a','m','e'));
+
+  hb_face_destroy (face_subset);
+  hb_face_destroy (face_origin);
+  hb_face_destroy (face_expected);
 }
 
-unsigned int hmtxvmtx_accelerator_base_t::get_advance_var_tt (hb_font_t *font, hb_codepoint_t glyph, bool vertical)
+int
+main (int argc, char **argv)
 {
-  glyf::accelerator_t glyf_accel;
-  glyf_accel.init (font->face);
+  hb_test_init (&argc, &argv);
 
-  unsigned int advance = glyf_accel.get_advance_var (glyph, font->coords, font->num_coords, vertical);
-  glyf_accel.fini ();
+  hb_test_add (test_subset_nameids);
 
-  return advance;
-}
-
+  return hb_test_run();
 }
