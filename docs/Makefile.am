@@ -76,7 +76,6 @@ content_files=	\
 	usermanual-install-harfbuzz.xml \
 	usermanual-getting-started.xml \
 	usermanual-shaping-concepts.xml \
-	usermanual-object-model.xml \
 	usermanual-buffers-language-script-and-direction.xml \
 	usermanual-fonts-and-faces.xml \
 	usermanual-clusters.xml \
