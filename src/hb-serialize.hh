@@ -323,9 +323,6 @@ struct hb_serialize_context_t
     return ret;
   }
 
-  void
-  err_ran_out_of_room () { this->ran_out_of_room = true; }
-
   template <typename Type>
   Type *allocate_size (unsigned int size)
   {
@@ -333,7 +330,7 @@ struct hb_serialize_context_t
 
     if (this->tail - this->head < ptrdiff_t (size))
     {
-      err_ran_out_of_room ();
+      this->ran_out_of_room = true;
       this->successful = false;
       return nullptr;
     }
