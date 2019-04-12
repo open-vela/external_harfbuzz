@@ -228,7 +228,7 @@ struct cff2_subr_subsetter_t : subr_subsetter_t<cff2_subr_subsetter_t, CFF2Subrs
   cff2_subr_subsetter_t (const OT::cff2::accelerator_subset_t &acc, const hb_subset_plan_t *plan)
     : subr_subsetter_t (acc, plan) {}
 
-  static void complete_parsed_str (cff2_cs_interp_env_t &env, subr_subset_param_t& param, parsed_cs_str_t &charstring)
+  static void finalize_parsed_str (cff2_cs_interp_env_t &env, subr_subset_param_t& param, parsed_cs_str_t &charstring)
   {
     /* vsindex is inserted at the beginning of the charstring as necessary */
     if (env.seen_vsindex ())
@@ -326,16 +326,18 @@ struct cff2_subset_plan {
       {
 	subset_localsubrs[fd].init ();
 	offsets.localSubrsInfos[fd].init ();
-
-	if (!subr_subsetter.encode_localsubrs (fd, subset_localsubrs[fd]))
-	  return false;
-
-	unsigned int dataSize = subset_localsubrs[fd].total_size ();
-	if (dataSize > 0)
+	if (fdmap.includes (fd))
 	{
-	  offsets.localSubrsInfos[fd].offset = final_size;
-	  offsets.localSubrsInfos[fd].offSize = calcOffSize (dataSize);
-	  offsets.localSubrsInfos[fd].size = CFF2Subrs::calculate_serialized_size (offsets.localSubrsInfos[fd].offSize, subset_localsubrs[fd].length, dataSize);
+	  if (!subr_subsetter.encode_localsubrs (fd, subset_localsubrs[fd]))
+	    return false;
+
+	  unsigned int dataSize = subset_localsubrs[fd].total_size ();
+	  if (dataSize > 0)
+	  {
+	    offsets.localSubrsInfos[fd].offset = final_size;
+	    offsets.localSubrsInfos[fd].offSize = calcOffSize (dataSize);
+	    offsets.localSubrsInfos[fd].size = CFF2Subrs::calculate_serialized_size (offsets.localSubrsInfos[fd].offSize, subset_localsubrs[fd].length, dataSize);
+	  }
 	}
       }
     }
@@ -376,7 +378,7 @@ struct cff2_subset_plan {
       cff_font_dict_op_serializer_t fontSzr;
       unsigned int dictsSize = 0;
       for (unsigned int i = 0; i < acc.fontDicts.length; i++)
-	if (fdmap.has (i))
+	if (fdmap.includes (i))
 	  dictsSize += FontDict::calculate_serialized_size (acc.fontDicts[i], fontSzr);
 
       offsets.FDArrayInfo.offSize = calcOffSize (dictsSize);
@@ -395,7 +397,7 @@ struct cff2_subset_plan {
     offsets.privateDictsOffset = final_size;
     for (unsigned int i = 0; i < orig_fdcount; i++)
     {
-      if (fdmap.has (i))
+      if (fdmap.includes (i))
       {
 	bool  has_localsubrs = offsets.localSubrsInfos[i].size > 0;
 	cff_private_dict_op_serializer_t privSzr (desubroutinize, drop_hints);
@@ -425,7 +427,7 @@ struct cff2_subset_plan {
   unsigned int    subset_fdselect_format;
   hb_vector_t<code_pair_t>   subset_fdselect_ranges;
 
-  hb_bimap_t   fdmap;
+  remap_t   fdmap;
 
   str_buff_vec_t	    subset_charstrings;
   str_buff_vec_t	    subset_globalsubrs;
@@ -535,7 +537,7 @@ static inline bool _write_cff2 (const cff2_subset_plan &plan,
   assert (plan.offsets.privateDictsOffset == (unsigned) (c.head - c.start));
   for (unsigned int i = 0; i < acc.privateDicts.length; i++)
   {
-    if (plan.fdmap.has (i))
+    if (plan.fdmap.includes (i))
     {
       PrivateDict  *pd = c.start_embed<PrivateDict> ();
       if (unlikely (pd == nullptr)) return false;
