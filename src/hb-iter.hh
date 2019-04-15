@@ -1,6 +1,5 @@
 /*
  * Copyright © 2018  Google, Inc.
- * Copyright © 2019  Facebook, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -23,7 +22,6 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
  * Google Author(s): Behdad Esfahbod
- * Facebook Author(s): Behdad Esfahbod
  */
 
 #ifndef HB_ITER_HH
@@ -132,7 +130,7 @@ struct hb_iter_t
 
 template <typename> struct hb_array_t;
 
-struct
+static const struct
 {
   template <typename T>
   hb_iter_t (T)
@@ -149,7 +147,7 @@ struct
   operator () (Type (&array)[length]) const
   { return hb_array_t<Type> (array, length); }
 
-} HB_FUNCOBJ (hb_iter);
+} hb_iter HB_UNUSED;
 
 
 /* Mixin to fill in what the subclass doesn't provide. */
@@ -300,13 +298,13 @@ struct hb_map_iter_factory_t
   private:
   Proj f;
 };
-struct
+static const struct
 {
   template <typename Proj>
   hb_map_iter_factory_t<Proj>
   operator () (Proj&& f) const
   { return hb_map_iter_factory_t<Proj> (f); }
-} HB_FUNCOBJ (hb_map);
+} hb_map HB_UNUSED;
 
 template <typename Iter, typename Pred, typename Proj,
 	 hb_enable_if (hb_is_iterator (Iter))>
@@ -344,14 +342,14 @@ struct hb_filter_iter_factory_t
   Pred p;
   Proj f;
 };
-struct
+static const struct
 {
   template <typename Pred = decltype ((hb_bool)),
 	    typename Proj = decltype ((hb_identity))>
   hb_filter_iter_factory_t<Pred, Proj>
   operator () (Pred&& p = hb_bool, Proj&& f = hb_identity) const
   { return hb_filter_iter_factory_t<Pred, Proj> (p, f); }
-} HB_FUNCOBJ (hb_filter);
+} hb_filter HB_UNUSED;
 
 template <typename Redu, typename InitT>
 struct hb_reduce_t
@@ -374,13 +372,13 @@ struct hb_reduce_t
   Redu r;
   InitT init_value;
 };
-struct
+static const struct
 {
   template <typename Redu, typename InitT>
   hb_reduce_t<Redu, InitT>
   operator () (Redu&& r, InitT init_value) const
   { return hb_reduce_t<Redu, InitT> (r, init_value); }
-} HB_FUNCOBJ (hb_reduce);
+} hb_reduce HB_UNUSED;
 
 
 /* hb_zip() */
@@ -413,14 +411,14 @@ struct hb_zip_iter_t :
   A a;
   B b;
 };
-struct
+static const struct
 {
   template <typename A, typename B,
 	    hb_enable_if (hb_is_iterable (A) && hb_is_iterable (B))>
   hb_zip_iter_t<hb_iter_t (A), hb_iter_t (B)>
   operator () (A& a, B &b) const
   { return hb_zip_iter_t<hb_iter_t (A), hb_iter_t (B)> (hb_iter (a), hb_iter (b)); }
-} HB_FUNCOBJ (hb_zip);
+} hb_zip HB_UNUSED;
 
 /* hb_enumerate */
 
@@ -448,14 +446,14 @@ struct hb_enumerate_iter_t :
   unsigned i;
   Iter it;
 };
-struct
+static const struct
 {
   template <typename Iterable,
 	    hb_enable_if (hb_is_iterable (Iterable))>
   hb_enumerate_iter_t<hb_iter_t (Iterable)>
   operator () (Iterable& it) const
   { return hb_enumerate_iter_t<hb_iter_t (Iterable)> (hb_iter (it)); }
-} HB_FUNCOBJ (hb_enumerate);
+} hb_enumerate HB_UNUSED;
 
 /* hb_apply() */
 
@@ -476,7 +474,7 @@ struct hb_apply_t
   private:
   Appl a;
 };
-struct
+static const struct
 {
   template <typename Appl> hb_apply_t<Appl>
   operator () (Appl&& a) const
@@ -485,7 +483,7 @@ struct
   template <typename Appl> hb_apply_t<Appl&>
   operator () (Appl *a) const
   { return hb_apply_t<Appl&> (*a); }
-} HB_FUNCOBJ (hb_apply);
+} hb_apply HB_UNUSED;
 
 /* hb_sink() */
 
@@ -506,7 +504,7 @@ struct hb_sink_t
   private:
   Sink s;
 };
-struct
+static const struct
 {
   template <typename Sink> hb_sink_t<Sink>
   operator () (Sink&& s) const
@@ -515,11 +513,11 @@ struct
   template <typename Sink> hb_sink_t<Sink&>
   operator () (Sink *s) const
   { return hb_sink_t<Sink&> (*s); }
-} HB_FUNCOBJ (hb_sink);
+} hb_sink HB_UNUSED;
 
 /* hb-drain: hb_sink to void / blackhole / /dev/null. */
 
-struct
+static const struct
 {
   template <typename Iter,
 	    hb_enable_if (hb_is_iterator (Iter))>
@@ -529,7 +527,7 @@ struct
     for (; it; ++it)
       (void) *it;
   }
-} HB_FUNCOBJ (hb_drain);
+} hb_drain HB_UNUSED;
 
 /* hb_unzip(): unzip and sink to two sinks. */
 
@@ -555,7 +553,7 @@ struct hb_unzip_t
   Sink1 s1;
   Sink2 s2;
 };
-struct
+static const struct
 {
   template <typename Sink1, typename Sink2> hb_unzip_t<Sink1, Sink2>
   operator () (Sink1&& s1, Sink2&& s2) const
@@ -564,12 +562,12 @@ struct
   template <typename Sink1, typename Sink2> hb_unzip_t<Sink1&, Sink2&>
   operator () (Sink1 *s1, Sink2 *s2) const
   { return hb_unzip_t<Sink1&, Sink2&> (*s1, *s2); }
-} HB_FUNCOBJ (hb_unzip);
+} hb_unzip HB_UNUSED;
 
 
 /* hb-all, hb-any, hb-none. */
 
-struct
+static const struct
 {
   template <typename Iterable,
 	    hb_enable_if (hb_is_iterable (Iterable))>
@@ -581,8 +579,9 @@ struct
 	return false;
     return true;
   }
-} HB_FUNCOBJ (hb_all);
-struct
+} hb_all HB_UNUSED;
+
+static const struct
 {
   template <typename Iterable,
 	    hb_enable_if (hb_is_iterable (Iterable))>
@@ -594,8 +593,9 @@ struct
 	return true;
     return false;
   }
-} HB_FUNCOBJ (hb_any);
-struct
+} hb_any HB_UNUSED;
+
+static const struct
 {
   template <typename Iterable,
 	    hb_enable_if (hb_is_iterable (Iterable))>
@@ -607,7 +607,7 @@ struct
 	return false;
     return true;
   }
-} HB_FUNCOBJ (hb_none);
+} hb_none HB_UNUSED;
 
 /*
  * Algorithms operating on iterators.

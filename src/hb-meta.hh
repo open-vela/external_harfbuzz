@@ -34,22 +34,18 @@
  * C++ template meta-programming & fundamentals used with them.
  */
 
-#define HB_FUNCOBJ(x) static_const x HB_UNUSED
 
-struct
+template <typename T> static inline T*
+hb_addressof (const T& arg)
 {
-  template <typename T>
-  T* operator () (const T& arg) const
-  {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-align"
-    /* https://en.cppreference.com/w/cpp/memory/addressof */
-    return reinterpret_cast<T*> (
-	     &const_cast<char&> (
-		reinterpret_cast<const volatile char&> (arg)));
+  /* https://en.cppreference.com/w/cpp/memory/addressof */
+  return reinterpret_cast<T*>(
+	   &const_cast<char&>(
+	      reinterpret_cast<const volatile char&>(arg)));
 #pragma GCC diagnostic pop
-  }
-} HB_FUNCOBJ (hb_addressof);
+}
 
 template <typename T> static inline T hb_declval ();
 #define hb_declval(T) (hb_declval<T> ())
@@ -67,24 +63,24 @@ template <typename T> struct hb_match_pointer<T *> { typedef T type; enum { valu
 #define hb_remove_pointer(T) typename hb_match_pointer<T>::type
 #define hb_is_pointer(T) hb_match_pointer<T>::value
 
-struct
+static const struct
 {
   template <typename T>
   T operator () (T v) const { return v; }
   template <typename T>
   T& operator () (T *v) const { return *v; }
-} HB_FUNCOBJ (hb_deref_pointer);
+} hb_deref_pointer HB_UNUSED;
 
 
 /* std::move and std::forward */
 
 template <typename T>
-static hb_remove_reference (T)&& hb_move (T&& t) { return (hb_remove_reference (T)&&) (t); }
+hb_remove_reference (T)&& hb_move (T&& t) { return (hb_remove_reference (T)&&) (t); }
 
 template <typename T>
-static T&& hb_forward (hb_remove_reference (T)& t) { return (T&&) t; }
+T&& hb_forward (hb_remove_reference (T)& t) { return (T&&) t; }
 template <typename T>
-static T&& hb_forward (hb_remove_reference (T)&& t) { return (T&&) t; }
+T&& hb_forward (hb_remove_reference (T)&& t) { return (T&&) t; }
 
 
 /* Void!  For when we need a expression-type of void. */

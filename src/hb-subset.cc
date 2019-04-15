@@ -45,12 +45,11 @@
 #include "hb-ot-vorg-table.hh"
 #include "hb-ot-layout-gsub-table.hh"
 #include "hb-ot-layout-gpos-table.hh"
+#include "hb-ot-var-gvar-table.hh"
+#include "hb-ot-var-hvar-table.hh"
 
 
-HB_UNUSED static inline unsigned int
-_plan_estimate_subset_table_size (hb_subset_plan_t *plan,
-				  unsigned int table_len);
-static inline unsigned int
+static unsigned int
 _plan_estimate_subset_table_size (hb_subset_plan_t *plan,
 				  unsigned int table_len)
 {
@@ -199,8 +198,6 @@ _subset_table (hb_subset_plan_t *plan,
     case HB_OT_TAG_VORG:
       result = _subset<const OT::VORG> (plan);
       break;
-
-#if !defined(HB_NO_SUBSET_LAYOUT)
     case HB_OT_TAG_GDEF:
       result = _subset2<const OT::GDEF> (plan);
       break;
@@ -210,7 +207,15 @@ _subset_table (hb_subset_plan_t *plan,
     case HB_OT_TAG_GPOS:
       result = _subset2<const OT::GPOS> (plan);
       break;
-#endif
+    case HB_OT_TAG_gvar:
+      result = _subset2<const OT::gvar> (plan);
+      break;
+    case HB_OT_TAG_HVAR:
+      result = _subset2<const OT::HVAR> (plan);
+      break;
+    case HB_OT_TAG_VVAR:
+      result = _subset2<const OT::VVAR> (plan);
+      break;
 
     default:
       hb_blob_t *source_table = hb_face_reference_table (plan->source, tag);
@@ -236,16 +241,11 @@ _should_drop_table (hb_subset_plan_t *plan, hb_tag_t tag)
     case HB_TAG ('h', 'd', 'm', 'x'): /* hint table, fallthrough */
     case HB_TAG ('V', 'D', 'M', 'X'): /* hint table, fallthrough */
       return plan->drop_hints;
-
     // Drop Layout Tables if requested.
     case HB_OT_TAG_GDEF:
     case HB_OT_TAG_GPOS:
     case HB_OT_TAG_GSUB:
-#if defined(HB_NO_SUBSET_LAYOUT)
-      return true;
-#endif
       return plan->drop_layout;
-
     // Drop these tables below by default, list pulled
     // from fontTools:
     case HB_TAG ('B', 'A', 'S', 'E'):
