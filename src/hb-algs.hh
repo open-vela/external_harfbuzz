@@ -1,6 +1,5 @@
 /*
  * Copyright © 2017  Google, Inc.
- * Copyright © 2019  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -23,7 +22,6 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
  * Google Author(s): Behdad Esfahbod
- * Facebook Author(s): Behdad Esfahbod
  */
 
 #ifndef HB_ALGS_HH
@@ -34,7 +32,7 @@
 #include "hb-null.hh"
 
 
-struct
+static const struct
 {
   /* Don't know how to set priority of following.  Doesn't work right now. */
   //template <typename T>
@@ -56,19 +54,19 @@ struct
     /* Knuth's multiplicative method: */
     return (uint32_t) v * 2654435761u;
   }
-} HB_FUNCOBJ (hb_hash);
+} hb_hash HB_UNUSED;
 
-struct
+static const struct
 {
   template <typename T> T
   operator () (const T& v) const { return v; }
-} HB_FUNCOBJ (hb_identity);
+} hb_identity HB_UNUSED;
 
-struct
+static const struct
 {
   template <typename T> bool
   operator () (const T& v) const { return bool (v); }
-} HB_FUNCOBJ (hb_bool);
+} hb_bool HB_UNUSED;
 
 template <typename T1, typename T2>
 struct hb_pair_t
@@ -88,28 +86,28 @@ struct hb_pair_t
 template <typename T1, typename T2> static inline hb_pair_t<T1, T2>
 hb_pair (T1&& a, T2&& b) { return hb_pair_t<T1, T2> (a, b); }
 
-struct
+static const struct
 {
   template <typename Pair> decltype (hb_declval (Pair).first)
   operator () (const Pair& pair) const { return pair.first; }
-} HB_FUNCOBJ (hb_first);
+} hb_first HB_UNUSED;
 
-struct
+static const struct
 {
   template <typename Pair> decltype (hb_declval (Pair).second)
   operator () (const Pair& pair) const { return pair.second; }
-} HB_FUNCOBJ (hb_second);
+} hb_second HB_UNUSED;
 
-struct
+static const struct
 {
   template <typename T, typename T2> T
   operator () (const T& a, const T2& b) const { return a <= b ? a : b; }
-} HB_FUNCOBJ (hb_min);
-struct
+} hb_min HB_UNUSED;
+static const struct
 {
   template <typename T, typename T2> T
   operator () (const T& a, const T2& b) const { return a >= b ? a : b; }
-} HB_FUNCOBJ (hb_max);
+} hb_max HB_UNUSED;
 
 
 /*
