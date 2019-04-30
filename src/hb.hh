@@ -167,7 +167,8 @@
 #include "hb-aat.h"
 #define HB_AAT_H_IN
 
-#include <limits.h>
+#include "hb-aat.h"
+
 #include <math.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -257,13 +258,6 @@ extern "C" int hb_memalign_impl(void **memptr, size_t alignment, size_t size);
 #  define HB_INTERNAL
 #  define HB_NO_VISIBILITY 1
 # endif
-#endif
-
-/* https://github.com/harfbuzz/harfbuzz/issues/1651 */
-#if defined(__clang__) && __clang_major__ < 10
-#define static_const static
-#else
-#define static_const static const
 #endif
 
 #if defined(__GNUC__) && (__GNUC__ >= 3)
@@ -650,7 +644,7 @@ struct BEInt<Type, 4>
 #include "hb-atomic.hh"	// Requires: hb-meta
 #include "hb-null.hh"	// Requires: hb-meta
 #include "hb-algs.hh"	// Requires: hb-meta hb-null
-#include "hb-iter.hh"	// Requires: hb-algs hb-meta
+#include "hb-iter.hh"	// Requires: hb-meta
 #include "hb-debug.hh"	// Requires: hb-algs hb-atomic
 #include "hb-array.hh"	// Requires: hb-algs hb-iter hb-null
 #include "hb-vector.hh"	// Requires: hb-array hb-null

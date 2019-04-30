@@ -85,12 +85,12 @@ struct SingleSubstFormat1
 
   bool serialize (hb_serialize_context_t *c,
 		  hb_sorted_array_t<const GlyphID> glyphs,
-		  unsigned delta)
+		  int delta)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
     if (unlikely (!coverage.serialize (c, this).serialize (c, glyphs))) return_trace (false);
-    c->check_assign (deltaGlyphID, delta);
+    deltaGlyphID = delta; /* TODO(serialize) overflow? */
     return_trace (true);
   }
 
@@ -127,8 +127,8 @@ struct SingleSubstFormat1
   OffsetTo<Coverage>
 		coverage;		/* Offset to Coverage table--from
 					 * beginning of Substitution table */
-  HBUINT16	deltaGlyphID;		/* Add to original GlyphID to get
-					 * substitute GlyphID, modulo 0x10000 */
+  HBINT16	deltaGlyphID;		/* Add to original GlyphID to get
+					 * substitute GlyphID */
   public:
   DEFINE_SIZE_STATIC (6);
 };
@@ -231,14 +231,15 @@ struct SingleSubst
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (u.format))) return_trace (false);
-    unsigned format = 2;
-    unsigned delta = 0;
+    unsigned int format = 2;
+    int delta = 0;
     if (glyphs.length)
     {
       format = 1;
-      delta = (unsigned) (substitutes[0] - glyphs[0]) & 0xFFFF;
+      /* TODO(serialize) check for wrap-around */
+      delta = substitutes[0] - glyphs[0];
       for (unsigned int i = 1; i < glyphs.length; i++)
-	if (delta != ((unsigned) (substitutes[i] - glyphs[i]) & 0xFFFF)) {
+	if (delta != (int) (substitutes[i] - glyphs[i])) {
 	  format = 2;
 	  break;
 	}

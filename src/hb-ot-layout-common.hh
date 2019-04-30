@@ -33,7 +33,6 @@
 #include "hb-ot-layout.hh"
 #include "hb-open-type.hh"
 #include "hb-set.hh"
-#include "hb-bimap.hh"
 
 
 #ifndef HB_MAX_NESTING_LEVEL
@@ -584,25 +583,25 @@ struct Feature
      * Adobe tools, only the 'size' feature had FeatureParams defined.
      */
 
-    if (likely (featureParams.is_null ()))
-      return_trace (true);
-
-    unsigned int orig_offset = featureParams;
+    OffsetTo<FeatureParams> orig_offset = featureParams;
     if (unlikely (!featureParams.sanitize (c, this, closure ? closure->tag : HB_TAG_NONE)))
       return_trace (false);
+
+    if (likely (orig_offset.is_null ()))
+      return_trace (true);
 
     if (featureParams == 0 && closure &&
 	closure->tag == HB_TAG ('s','i','z','e') &&
 	closure->list_base && closure->list_base < this)
     {
-      unsigned int new_offset_int = orig_offset -
+      unsigned int new_offset_int = (unsigned int) orig_offset -
 				    (((char *) this) - ((char *) closure->list_base));
 
       OffsetTo<FeatureParams> new_offset;
-      /* Check that it would not overflow. */
+      /* Check that it did not overflow. */
       new_offset = new_offset_int;
       if (new_offset == new_offset_int &&
-	  c->try_set (&featureParams, new_offset_int) &&
+	  c->try_set (&featureParams, new_offset) &&
 	  !featureParams.sanitize (c, this, closure ? closure->tag : HB_TAG_NONE))
 	return_trace (false);
     }
@@ -1687,21 +1686,6 @@ struct VarRegionList
 		  axesZ.sanitize (c, (unsigned int) axisCount * (unsigned int) regionCount));
   }
 
-  bool serialize (hb_serialize_context_t *c, const VarRegionList *src, const hb_bimap_t &region_map)
-  {
-    TRACE_SERIALIZE (this);
-    VarRegionList *out = c->allocate_min<VarRegionList> ();
-    if (unlikely (!out)) return_trace (false);
-    axisCount = src->axisCount;
-    regionCount = region_map.get_count ();
-    if (unlikely (!c->allocate_size<VarRegionList> (get_size () - min_size))) return_trace (false);
-    for (unsigned int r = 0; r < regionCount; r++)
-      memcpy (&axesZ[axisCount * r], &src->axesZ[axisCount * region_map.to_old (r)], VarRegionAxis::static_size * axisCount);
-
-    return_trace (true);
-  }
-
-  unsigned int get_size () const { return min_size + VarRegionAxis::static_size * axisCount * regionCount; }
   unsigned int get_region_count () const { return regionCount; }
 
   protected:
@@ -1718,6 +1702,9 @@ struct VarData
   unsigned int get_region_index_count () const
   { return regionIndices.len; }
 
+  unsigned int get_row_size () const
+  { return shortCount + regionIndices.len; }
+
   unsigned int get_size () const
   { return itemCount * get_row_size (); }
 
@@ -1731,7 +1718,7 @@ struct VarData
    unsigned int count = regionIndices.len;
    unsigned int scount = shortCount;
 
-   const HBUINT8 *bytes = get_delta_bytes ();
+   const HBUINT8 *bytes = &StructAfter<HBUINT8> (regionIndices);
    const HBUINT8 *row = bytes + inner * (scount + count);
 
    float delta = 0.;
@@ -1771,119 +1758,9 @@ struct VarData
     return_trace (c->check_struct (this) &&
 		  regionIndices.sanitize (c) &&
 		  shortCount <= regionIndices.len &&
-		  c->check_range (get_delta_bytes (),
+		  c->check_range (&StructAfter<HBUINT8> (regionIndices),
 				  itemCount,
 				  get_row_size ()));
-  }
-
-  bool serialize (hb_serialize_context_t *c,
-		  const VarData *src,
-		  const hb_bimap_t &inner_map,
-		  const hb_bimap_t &region_map)
-  {
-    TRACE_SUBSET (this);
-    if (unlikely (!c->extend_min (*this))) return_trace (false);
-    itemCount = inner_map.get_count ();
-    
-    /* Optimize short count */
-    unsigned short ri_count = src->regionIndices.len;
-    enum delta_size_t { kZero=0, kByte, kShort };
-    hb_vector_t<delta_size_t> delta_sz;
-    hb_vector_t<unsigned int> ri_map;	/* maps old index to new index */
-    delta_sz.resize (ri_count);
-    ri_map.resize (ri_count);
-    unsigned int new_short_count = 0;
-    unsigned int r;
-    for (r = 0; r < ri_count; r++)
-    {
-      delta_sz[r] = kZero;
-      for (unsigned int i = 0; i < inner_map.get_count (); i++)
-      {
-	unsigned int old = inner_map.to_old (i);
-	int16_t delta = src->get_item_delta (old, r);
-	if (delta < -128 || 127 < delta)
-	{
-	  delta_sz[r] = kShort;
-	  new_short_count++;
-	  break;
-	}
-	else if (delta != 0)
-	  delta_sz[r] = kByte;
-      }
-    }
-    unsigned int short_index = 0;
-    unsigned int byte_index = new_short_count;
-    unsigned int new_ri_count = 0;
-    for (r = 0; r < ri_count; r++)
-      if (delta_sz[r])
-      {
-      	ri_map[r] = (delta_sz[r] == kShort)? short_index++ : byte_index++;
-      	new_ri_count++;
-      }
-
-    shortCount = new_short_count;
-    regionIndices.len = new_ri_count;
-
-    unsigned int size = regionIndices.get_size () - HBUINT16::static_size/*regionIndices.len*/ + (get_row_size () * itemCount);
-    if (unlikely (!c->allocate_size<HBUINT8> (size)))
-      return_trace (false);
-
-    for (r = 0; r < ri_count; r++)
-      if (delta_sz[r]) regionIndices[ri_map[r]] = region_map.to_new (src->regionIndices[r]);
-
-    for (unsigned int i = 0; i < itemCount; i++)
-    {
-      hb_codepoint_t	old = inner_map.to_old (i);
-      if (unlikely (old >= src->itemCount)) return_trace (false);
-      for (unsigned int r = 0; r < ri_count; r++)
-	if (delta_sz[r]) set_item_delta (i, ri_map[r], src->get_item_delta (old, r));
-    }
-
-    return_trace (true);
-  }
-
-  void collect_region_refs (hb_bimap_t &region_map, const hb_bimap_t &inner_map) const
-  {
-    for (unsigned int r = 0; r < regionIndices.len; r++)
-    {
-      unsigned int region = regionIndices[r];
-      if (region_map.has (region)) continue;
-      for (unsigned int i = 0; i < inner_map.get_count (); i++)
-	if (get_item_delta (inner_map.to_old (i), r) != 0)
-	{
-	  region_map.add (region);
-	  break;
-	}
-    }
-  }
-
-  protected:
-  unsigned int get_row_size () const
-  { return shortCount + regionIndices.len; }
-
-  const HBUINT8 *get_delta_bytes () const
-  { return &StructAfter<HBUINT8> (regionIndices); }
-
-  HBUINT8 *get_delta_bytes ()
-  { return &StructAfter<HBUINT8> (regionIndices); }
-
-  int16_t get_item_delta (unsigned int item, unsigned int region) const
-  {
-    if (unlikely (item >= itemCount || region >= regionIndices.len)) return 0;
-    const HBINT8 *p = (const HBINT8 *)get_delta_bytes () + item * get_row_size ();
-    if (region < shortCount)
-      return ((const HBINT16 *)p)[region];
-    else
-      return (p + HBINT16::static_size * shortCount)[region - shortCount];
-  }
-
-  void set_item_delta (unsigned int item, unsigned int region, int16_t delta)
-  {
-    HBINT8 *p = (HBINT8 *)get_delta_bytes () + item * get_row_size ();
-    if (region < shortCount)
-      ((HBINT16 *)p)[region] = delta;
-    else
-      (p + HBINT16::static_size * shortCount)[region - shortCount] = delta;
   }
 
   protected:
@@ -1925,43 +1802,6 @@ struct VariationStore
 		  dataSets.sanitize (c, this));
   }
 
-  bool serialize (hb_serialize_context_t *c,
-		  const VariationStore *src,
-  		  const hb_array_t <hb_bimap_t> &inner_remaps)
-  {
-    TRACE_SUBSET (this);
-    unsigned int set_count = 0;
-    for (unsigned int i = 0; i < inner_remaps.length; i++)
-      if (inner_remaps[i].get_count () > 0) set_count++;
-
-    unsigned int size = min_size + HBUINT32::static_size * set_count;
-    if (unlikely (!c->allocate_size<HBUINT32> (size))) return_trace (false);
-    format = 1;
-
-    hb_bimap_t region_map;
-    for (unsigned int i = 0; i < inner_remaps.length; i++)
-      (src+src->dataSets[i]).collect_region_refs (region_map, inner_remaps[i]);
-    region_map.reorder ();
-
-    if (unlikely (!regions.serialize (c, this)
-		  .serialize (c, &(src+src->regions), region_map))) return_trace (false);
-
-    /* TODO: The following code could be simplified when
-     * OffsetListOf::subset () can take a custom param to be passed to VarData::serialize ()
-     */
-    dataSets.len = set_count;
-    unsigned int set_index = 0;
-    for (unsigned int i = 0; i < inner_remaps.length; i++)
-    {
-      if (inner_remaps[i].get_count () == 0) continue;
-      if (unlikely (!dataSets[set_index++].serialize (c, this)
-		      .serialize (c, &(src+src->dataSets[i]), inner_remaps[i], region_map)))
-	return_trace (false);
-    }
-    
-    return_trace (true);
-  }
-
   unsigned int get_region_index_count (unsigned int ivs) const
   { return (this+dataSets[ivs]).get_region_index_count (); }
 
@@ -1973,10 +1813,6 @@ struct VariationStore
     (this+dataSets[ivs]).get_scalars (coords, coord_count, this+regions,
                                       &scalars[0], num_scalars);
   }
-
-  const VarRegionList &get_regions () const { return this+regions; }
-
-  unsigned int get_sub_table_count () const { return dataSets.len; }
 
   protected:
   HBUINT16				format;

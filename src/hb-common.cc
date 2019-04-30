@@ -488,7 +488,7 @@ hb_script_from_string (const char *str, int len)
 
 /**
  * hb_script_to_iso15924_tag:
- * @script: an #hb_script_t to convert.
+ * @script: an #hb_script_ to convert.
  *
  * See hb_script_from_iso15924_tag().
  *
@@ -783,7 +783,7 @@ parse_uint32 (const char **pp, const char *end, uint32_t *pv)
 static void free_static_C_locale ();
 #endif
 
-static struct hb_C_locale_lazy_loader_t : hb_lazy_loader_t<hb_remove_pointer<HB_LOCALE_T>,
+static struct hb_C_locale_lazy_loader_t : hb_lazy_loader_t<hb_remove_pointer (HB_LOCALE_T),
 							  hb_C_locale_lazy_loader_t>
 {
   static HB_LOCALE_T create ()
@@ -1159,59 +1159,6 @@ hb_variation_to_string (hb_variation_t *variation,
   memcpy (buf, s, len);
   buf[len] = '\0';
 }
-
-/**
- * hb_color_get_alpha:
- *
- *
- *
- * Since: REPLACEME
- */
-uint8_t
-(hb_color_get_alpha) (hb_color_t color)
-{
-  return hb_color_get_alpha (color);
-}
-
-/**
- * hb_color_get_red:
- *
- *
- *
- * Since: REPLACEME
- */
-uint8_t
-(hb_color_get_red) (hb_color_t color)
-{
-  return hb_color_get_red (color);
-}
-
-/**
- * hb_color_get_green:
- *
- *
- *
- * Since: REPLACEME
- */
-uint8_t
-(hb_color_get_green) (hb_color_t color)
-{
-  return hb_color_get_green (color);
-}
-
-/**
- * hb_color_get_blue:
- *
- *
- *
- * Since: REPLACEME
- */
-uint8_t
-(hb_color_get_blue) (hb_color_t color)
-{
-  return hb_color_get_blue (color);
-}
-
 
 /* If there is no visibility control, then hb-static.cc will NOT
  * define anything.  Instead, we get it to define one set in here

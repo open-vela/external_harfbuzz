@@ -34,16 +34,57 @@
  * C++ template meta-programming & fundamentals used with them.
  */
 
+
+template <typename T> static inline T*
+hb_addressof (const T& arg)
+{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
+  /* https://en.cppreference.com/w/cpp/memory/addressof */
+  return reinterpret_cast<T*>(
+	   &const_cast<char&>(
+	      reinterpret_cast<const volatile char&>(arg)));
+#pragma GCC diagnostic pop
+}
+
+template <typename T> static inline T hb_declval ();
+#define hb_declval(T) (hb_declval<T> ())
+
+template <typename T> struct hb_match_const { typedef T type; enum { value = false }; };
+template <typename T> struct hb_match_const<const T> { typedef T type; enum { value = true }; };
+#define hb_remove_const(T) typename hb_match_const<T>::type
+#define hb_is_const(T) hb_match_const<T>::value
+template <typename T> struct hb_match_reference { typedef T type; enum { value = false }; };
+template <typename T> struct hb_match_reference<T &> { typedef T type; enum { value = true }; };
+#define hb_remove_reference(T) typename hb_match_reference<T>::type
+#define hb_is_reference(T) hb_match_reference<T>::value
+template <typename T> struct hb_match_pointer { typedef T type; enum { value = false }; };
+template <typename T> struct hb_match_pointer<T *> { typedef T type; enum { value = true }; };
+#define hb_remove_pointer(T) typename hb_match_pointer<T>::type
+#define hb_is_pointer(T) hb_match_pointer<T>::value
+
+static const struct
+{
+  template <typename T>
+  T operator () (T v) const { return v; }
+  template <typename T>
+  T& operator () (T *v) const { return *v; }
+} hb_deref_pointer HB_UNUSED;
+
+
+/* std::move and std::forward */
+
+template <typename T>
+static hb_remove_reference (T)&& hb_move (T&& t) { return (hb_remove_reference (T)&&) (t); }
+
+template <typename T>
+static T&& hb_forward (hb_remove_reference (T)& t) { return (T&&) t; }
+template <typename T>
+static T&& hb_forward (hb_remove_reference (T)&& t) { return (T&&) t; }
+
+
 /* Void!  For when we need a expression-type of void. */
 struct hb_void_t { typedef void value; };
-
-/* Void meta-function ala std::void_t
- * https://en.cppreference.com/w/cpp/types/void_t */
-template<typename... Ts> struct _hb_void_tt { typedef void type; };
-template<typename... Ts> using hb_void_tt = typename _hb_void_tt<Ts...>::type;
-
-template<typename Head, typename... Ts> struct _hb_head_tt { typedef Head type; };
-template<typename... Ts> using hb_head_tt = typename _hb_head_tt<Ts...>::type;
 
 /* Bool!  For when we need to evaluate type-dependent expressions
  * in a template argument. */
@@ -51,111 +92,34 @@ template <bool b> struct hb_bool_tt { enum { value = b }; };
 typedef hb_bool_tt<true> hb_true_t;
 typedef hb_bool_tt<false> hb_false_t;
 
-
-/* Function overloading SFINAE and priority. */
-
-#define HB_RETURN(Ret, E) -> hb_head_tt<Ret, decltype ((E))> { return (E); }
-#define HB_AUTO_RETURN(E) -> decltype ((E)) { return (E); }
-#define HB_VOID_RETURN(E) -> hb_void_tt<decltype ((E))> { (E); }
-
-template <unsigned Pri> struct hb_priority : hb_priority<Pri - 1> {};
-template <>             struct hb_priority<0> {};
-#define hb_prioritize hb_priority<16> ()
-
-#define HB_FUNCOBJ(x) static_const x HB_UNUSED
-
-
-template <typename T> struct hb_match_identity { typedef T type; };
-template <typename T> using hb_type_identity = typename hb_match_identity<T>::type;
-
-struct
-{
-  template <typename T>
-  T* operator () (const T& arg) const
-  {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wcast-align"
-    /* https://en.cppreference.com/w/cpp/memory/addressof */
-    return reinterpret_cast<T*> (
-	     &const_cast<char&> (
-		reinterpret_cast<const volatile char&> (arg)));
-#pragma GCC diagnostic pop
-  }
-} HB_FUNCOBJ (hb_addressof);
-
-template <typename T> static inline T hb_declval ();
-#define hb_declval(T) (hb_declval<T> ())
-
-template <typename T> struct hb_match_const { typedef T type; enum { value = false }; };
-template <typename T> struct hb_match_const<const T> { typedef T type; enum { value = true }; };
-template <typename T> using hb_remove_const = typename hb_match_const<T>::type;
-#define hb_is_const(T) hb_match_const<T>::value
-template <typename T> struct hb_match_reference { typedef T type; enum { value = false }; };
-template <typename T> struct hb_match_reference<T &> { typedef T type; enum { value = true }; };
-template <typename T> using hb_remove_reference = typename hb_match_reference<T>::type;
-#define hb_is_reference(T) hb_match_reference<T>::value
-template <typename T> struct hb_match_pointer { typedef T type; enum { value = false }; };
-template <typename T> struct hb_match_pointer<T *> { typedef T type; enum { value = true }; };
-template <typename T> using hb_remove_pointer = typename hb_match_pointer<T>::type;
-#define hb_is_pointer(T) hb_match_pointer<T>::value
-
-/* TODO Add feature-parity to std::decay. */
-template <typename T> using hb_decay = hb_remove_const<hb_remove_reference<T>>;
-
-#define hb_is_cr_convertible_to(A, B) ( \
-	hb_is_same (hb_decay<A>, hb_decay<B>) && \
-	hb_is_const (A) <= hb_is_const (B) && \
-	hb_is_reference (A) >= hb_is_reference (B))
-
-
-/* std::move and std::forward */
-
-template <typename T>
-static hb_remove_reference<T>&& hb_move (T&& t) { return (hb_remove_reference<T>&&) (t); }
-
-template <typename T>
-static T&& hb_forward (hb_remove_reference<T>& t) { return (T&&) t; }
-template <typename T>
-static T&& hb_forward (hb_remove_reference<T>&& t) { return (T&&) t; }
-
-struct
-{
-  template <typename T> auto
-  operator () (T&& v) const HB_AUTO_RETURN (hb_forward<T> (v))
-
-  template <typename T> auto
-  operator () (T *v) const HB_AUTO_RETURN (*v)
-
-} HB_FUNCOBJ (hb_deref_pointer);
-
-
-template<bool B, typename T = void> struct hb_enable_if {};
-template<typename T>                struct hb_enable_if<true, T> { typedef T type; };
+template<bool B, typename T = void>
+struct hb_enable_if {};
+template<typename T>
+struct hb_enable_if<true, T> { typedef T type; };
 #define hb_enable_if(Cond) typename hb_enable_if<(Cond)>::type* = nullptr
 
-template <typename T, typename T2> struct hb_is_same : hb_false_t {};
-template <typename T>              struct hb_is_same<T, T> : hb_true_t {};
+template <typename T, typename T2>
+struct hb_is_same : hb_false_t {};
+template <typename T>
+struct hb_is_same<T, T> : hb_true_t {};
 #define hb_is_same(T, T2) hb_is_same<T, T2>::value
 
-template <typename T> struct hb_is_signed;
-template <> struct hb_is_signed<char> { enum { value = CHAR_MIN < 0 }; };
-template <> struct hb_is_signed<signed char> { enum { value = true }; };
-template <> struct hb_is_signed<unsigned char> { enum { value = false }; };
-template <> struct hb_is_signed<signed short> { enum { value = true }; };
-template <> struct hb_is_signed<unsigned short> { enum { value = false }; };
-template <> struct hb_is_signed<signed int> { enum { value = true }; };
-template <> struct hb_is_signed<unsigned int> { enum { value = false }; };
-template <> struct hb_is_signed<signed long> { enum { value = true }; };
-template <> struct hb_is_signed<unsigned long> { enum { value = false }; };
-template <> struct hb_is_signed<signed long long> { enum { value = true }; };
-template <> struct hb_is_signed<unsigned long long> { enum { value = false }; };
-#define hb_is_signed(T) hb_is_signed<T>::value
 
-template <typename T> struct hb_int_min { static constexpr T value = 0; };
-template <> struct hb_int_min<char> { static constexpr char value = CHAR_MIN; };
-template <> struct hb_int_min<int>  { static constexpr int  value = INT_MIN;  };
-template <> struct hb_int_min<long> { static constexpr long value = LONG_MIN; };
-#define hb_int_min(T) hb_int_min<T>::value
+/*
+ * Meta-functions.
+ */
+
+template <typename T> struct hb_is_signed;
+/* https://github.com/harfbuzz/harfbuzz/issues/1535 */
+template <> struct hb_is_signed<int8_t> { enum { value = true }; };
+template <> struct hb_is_signed<int16_t> { enum { value = true }; };
+template <> struct hb_is_signed<int32_t> { enum { value = true }; };
+template <> struct hb_is_signed<int64_t> { enum { value = true }; };
+template <> struct hb_is_signed<uint8_t> { enum { value = false }; };
+template <> struct hb_is_signed<uint16_t> { enum { value = false }; };
+template <> struct hb_is_signed<uint32_t> { enum { value = false }; };
+template <> struct hb_is_signed<uint64_t> { enum { value = false }; };
+#define hb_is_signed(T) hb_is_signed<T>::value
 
 template <bool is_signed> struct hb_signedness_int;
 template <> struct hb_signedness_int<false> { typedef unsigned int value; };
