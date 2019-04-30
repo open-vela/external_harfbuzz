@@ -43,17 +43,11 @@
 #include "hb-ot-cff1-table.hh"
 #include "hb-ot-cff2-table.hh"
 #include "hb-ot-vorg-table.hh"
-#include "hb-ot-name-table.hh"
 #include "hb-ot-layout-gsub-table.hh"
 #include "hb-ot-layout-gpos-table.hh"
-#include "hb-ot-var-gvar-table.hh"
-#include "hb-ot-var-hvar-table.hh"
 
 
-HB_UNUSED static inline unsigned int
-_plan_estimate_subset_table_size (hb_subset_plan_t *plan,
-				  unsigned int table_len);
-static inline unsigned int
+static HB_UNUSED unsigned int
 _plan_estimate_subset_table_size (hb_subset_plan_t *plan,
 				  unsigned int table_len)
 {
@@ -70,11 +64,11 @@ template<typename TableType>
 static bool
 _subset2 (hb_subset_plan_t *plan)
 {
-  bool result = true;
   hb_blob_t *source_blob = hb_sanitize_context_t ().reference_table<TableType> (plan->source);
   const TableType *table = source_blob->as<TableType> ();
 
   hb_tag_t tag = TableType::tableTag;
+  hb_bool_t result = false;
   if (source_blob->data)
   {
     hb_vector_t<char> buf;
@@ -89,7 +83,8 @@ _subset2 (hb_subset_plan_t *plan)
     hb_serialize_context_t serializer ((void *) buf, buf_size);
     serializer.start_serialize<TableType> ();
     hb_subset_context_t c (plan, &serializer);
-    bool needed = table->subset (&c);
+    result = table->subset (&c);
+    serializer.end_serialize ();
     if (serializer.ran_out_of_room)
     {
       buf_size += (buf_size >> 1) + 32;
@@ -101,23 +96,22 @@ _subset2 (hb_subset_plan_t *plan)
       }
       goto retry;
     }
-    serializer.end_serialize ();
-
-    result = !serializer.in_error ();
+    if (serializer.in_error ())
+    {
+      abort ();
+    }
 
     if (result)
     {
-      if (needed)
-      {
-	hb_blob_t *dest_blob = serializer.copy_blob ();
-	DEBUG_MSG(SUBSET, nullptr, "OT::%c%c%c%c final subset table size: %u bytes.", HB_UNTAG (tag), dest_blob->length);
-	result = c.plan->add_table (tag, dest_blob);
-	hb_blob_destroy (dest_blob);
-      }
-      else
-      {
-	DEBUG_MSG(SUBSET, nullptr, "OT::%c%c%c%c::subset table subsetted to empty.", HB_UNTAG (tag));
-      }
+      hb_blob_t *dest_blob = serializer.copy_blob ();
+      DEBUG_MSG(SUBSET, nullptr, "OT::%c%c%c%c final subset table size: %u bytes.", HB_UNTAG (tag), dest_blob->length);
+      result = c.plan->add_table (tag, dest_blob);
+      hb_blob_destroy (dest_blob);
+    }
+    else
+    {
+      DEBUG_MSG(SUBSET, nullptr, "OT::%c%c%c%c::subset table subsetted to empty.", HB_UNTAG (tag));
+      result = true;
     }
   }
   else
@@ -160,9 +154,6 @@ _subset_table (hb_subset_plan_t *plan,
       break;
     case HB_OT_TAG_hdmx:
       result = _subset<const OT::hdmx> (plan);
-      break;
-    case HB_OT_TAG_name:
-      result = _subset2<const OT::name> (plan);
       break;
     case HB_OT_TAG_head:
       // TODO that won't work well if there is no glyf
@@ -215,15 +206,6 @@ _subset_table (hb_subset_plan_t *plan,
       break;
     case HB_OT_TAG_GPOS:
       result = _subset2<const OT::GPOS> (plan);
-      break;
-    case HB_OT_TAG_gvar:
-      result = _subset2<const OT::gvar> (plan);
-      break;
-    case HB_OT_TAG_HVAR:
-      result = _subset2<const OT::HVAR> (plan);
-      break;
-    case HB_OT_TAG_VVAR:
-      result = _subset2<const OT::VVAR> (plan);
       break;
 #endif
 

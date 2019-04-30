@@ -153,13 +153,13 @@ struct LookupSegmentArray
 		  first <= last &&
 		  valuesZ.sanitize (c, base, last - first + 1));
   }
-  template <typename ...Ts>
-  bool sanitize (hb_sanitize_context_t *c, const void *base, Ts &&...ds) const
+  template <typename T2>
+  bool sanitize (hb_sanitize_context_t *c, const void *base, T2 user_data) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this) &&
 		  first <= last &&
-		  valuesZ.sanitize (c, base, last - first + 1, hb_forward<Ts> (ds)...));
+		  valuesZ.sanitize (c, base, last - first + 1, user_data));
   }
 
   GlyphID	last;		/* Last GlyphID in this segment */

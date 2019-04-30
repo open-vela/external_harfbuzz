@@ -50,12 +50,8 @@ TEST_PROGS = \
 	test-subset-vmtx \
 	test-subset-cff1 \
 	test-subset-cff2 \
-	test-subset-gvar \
-	test-subset-hvar \
-	test-subset-vvar \
 	test-unicode \
 	test-version \
-	test-subset-nameids \
 	$(NULL)
 
 test_subset_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
@@ -68,10 +64,6 @@ test_subset_post_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
 test_subset_vmtx_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
 test_subset_cff1_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
 test_subset_cff2_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
-test_subset_gvar_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
-test_subset_hvar_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
-test_subset_vvar_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
-test_subset_nameids_LDADD = $(LDADD) $(top_builddir)/src/libharfbuzz-subset.la
 
 test_unicode_CPPFLAGS = \
 	$(AM_CPPFLAGS) \
@@ -90,7 +82,6 @@ TEST_PROGS += \
 	test-ot-name \
 	test-ot-tag \
 	test-ot-extents-cff \
-	test-ot-metrics-tt-var \
 	$(NULL)
 
 

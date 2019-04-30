@@ -28,7 +28,7 @@ jobs:
     steps:
       - checkout
       - run: HOMEBREW_NO_AUTO_UPDATE=1 brew install wget autoconf automake libtool pkg-config ragel freetype glib cairo icu4c graphite2
-      - run: export PKG_CONFIG_PATH="/usr/local/opt/icu4c/lib/pkgconfig:/usr/local/opt/libffi/lib/pkgconfig" && ./autogen.sh --with-freetype --with-glib --with-gobject --with-cairo --with-icu --with-coretext --with-graphite2
+      - run: export PKG_CONFIG_PATH="/usr/local/opt/icu4c/lib/pkgconfig" && ./autogen.sh --with-freetype --with-glib --with-gobject --with-cairo --with-icu --with-coretext --with-graphite2
       - run: make -j4
       - run: make check || .ci/fail.sh
 
@@ -235,13 +235,22 @@ jobs:
       - run: CFLAGS="-Wno-attributes" CXXFLAGS="-Wno-attributes" ./autogen.sh --prefix=/usr/local/djgpp --host=i586-pc-msdosdjgpp
       - run: make -j32
 
+  crosscompile-notest-freebsd9:
+    docker:
+      - image: donbowman/freebsd-cross-build
+    steps:
+      - checkout
+      - run: apt update && apt install -y pkg-config ragel
+      - run: ./autogen.sh --prefix=/freebsd --host=x86_64-pc-freebsd9
+      - run: make -j32
+
   crosscompile-notest-psvita:
     docker:
       - image: dockcross/base
     steps:
       - checkout
       - run: git clone https://github.com/vitasdk/vdpm && cd vdpm && ./bootstrap-vitasdk.sh
-      - run: echo '#!/bin/true' > /usr/bin/ragel && chmod +x /usr/bin/ragel
+      - run: echo "#""!""/bin/true" > /usr/bin/ragel && chmod +x /usr/bin/ragel
       - run: ./autogen.sh --prefix=/usr/local/vitasdk/arm-vita-eabi --host=arm-vita-eabi
       - run: make -j32
 
@@ -318,6 +327,7 @@ workflows:
       # they can't be test thus are without tests
       ## autotools
       - crosscompile-notest-djgpp
+      - crosscompile-notest-freebsd9
       - crosscompile-notest-psvita
 
       ## cmake
