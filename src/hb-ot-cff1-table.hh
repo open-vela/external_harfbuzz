@@ -571,7 +571,7 @@ struct Charset {
 struct CFF1StringIndex : CFF1Index
 {
   bool serialize (hb_serialize_context_t *c, const CFF1StringIndex &strings,
-		  unsigned int offSize_, const hb_bimap_t &sidmap)
+		  unsigned int offSize_, const remap_t &sidmap)
   {
     TRACE_SERIALIZE (this);
     if (unlikely ((strings.count == 0) || (sidmap.get_count () == 0)))
@@ -589,7 +589,7 @@ struct CFF1StringIndex : CFF1Index
     for (unsigned int i = 0; i < strings.count; i++)
     {
       hb_codepoint_t  j = sidmap[i];
-      if (j != HB_MAP_VALUE_INVALID)
+      if (j != CFF_UNDEF_CODE)
 	bytesArray[j] = strings[i];
     }
 
@@ -599,7 +599,7 @@ struct CFF1StringIndex : CFF1Index
   }
 
   /* in parallel to above */
-  unsigned int calculate_serialized_size (unsigned int &offSize /*OUT*/, const hb_bimap_t &sidmap) const
+  unsigned int calculate_serialized_size (unsigned int &offSize /*OUT*/, const remap_t &sidmap) const
   {
     offSize = 0;
     if ((count == 0) || (sidmap.get_count () == 0))
@@ -607,7 +607,7 @@ struct CFF1StringIndex : CFF1Index
 
     unsigned int dataSize = 0;
     for (unsigned int i = 0; i < count; i++)
-      if (sidmap[i] != HB_MAP_VALUE_INVALID)
+      if (sidmap[i] != CFF_UNDEF_CODE)
 	dataSize += length_at (i);
 
     offSize = calcOffSize(dataSize);
