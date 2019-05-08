@@ -55,6 +55,7 @@
  * type of .end()?
  */
 
+
 /*
  * Base classes for iterators.
  */
@@ -119,11 +120,9 @@ struct hb_iter_t
   iter_t  operator << (const T v) && { **thiz() = v; ++*thiz(); return *thiz(); }
 
   protected:
-  hb_iter_t () = default;
-  hb_iter_t (const hb_iter_t &o HB_UNUSED) = default;
-  hb_iter_t (hb_iter_t &&o HB_UNUSED) = default;
-  hb_iter_t& operator = (const hb_iter_t &o HB_UNUSED) = default;
-  hb_iter_t& operator = (hb_iter_t &&o HB_UNUSED) = default;
+  hb_iter_t () {}
+  hb_iter_t (const hb_iter_t &o HB_UNUSED) {}
+  void operator = (const hb_iter_t &o HB_UNUSED) {}
 };
 
 #define HB_ITER_USING(Name) \
@@ -191,17 +190,17 @@ struct hb_iter_fallback_mixin_t
   item_t __item_at__ (unsigned i) const { return *(*thiz() + i); }
 
   /* Termination: Implement __more__(), or __len__() if random-access. */
-  bool __more__ () const { return bool (thiz()->len ()); }
+  bool __more__ () const { return thiz()->len (); }
   unsigned __len__ () const
-  { iter_t c (*thiz()); unsigned l = 0; while (c) { c++; l++; } return l; }
+  { iter_t c (*thiz()); unsigned l = 0; while (c) { c++; l++; }; return l; }
 
   /* Advancing: Implement __next__(), or __forward__() if random-access. */
   void __next__ () { *thiz() += 1; }
-  void __forward__ (unsigned n) { while (*thiz() && n--) ++*thiz(); }
+  void __forward__ (unsigned n) { while (n--) ++*thiz(); }
 
   /* Rewinding: Implement __prev__() or __rewind__() if bidirectional. */
   void __prev__ () { *thiz() -= 1; }
-  void __rewind__ (unsigned n) { while (*thiz() && n--) --*thiz(); }
+  void __rewind__ (unsigned n) { while (n--) --*thiz(); }
 
   /* Range-based for: Implement __end__() if can be done faster,
    * and operator!=. */
@@ -216,11 +215,9 @@ struct hb_iter_fallback_mixin_t
   }
 
   protected:
-  hb_iter_fallback_mixin_t () = default;
-  hb_iter_fallback_mixin_t (const hb_iter_fallback_mixin_t &o HB_UNUSED) = default;
-  hb_iter_fallback_mixin_t (hb_iter_fallback_mixin_t &&o HB_UNUSED) = default;
-  hb_iter_fallback_mixin_t& operator = (const hb_iter_fallback_mixin_t &o HB_UNUSED) = default;
-  hb_iter_fallback_mixin_t& operator = (hb_iter_fallback_mixin_t &&o HB_UNUSED) = default;
+  hb_iter_fallback_mixin_t () {}
+  hb_iter_fallback_mixin_t (const hb_iter_fallback_mixin_t &o HB_UNUSED) {}
+  void operator = (const hb_iter_fallback_mixin_t &o HB_UNUSED) {}
 };
 
 template <typename iter_t, typename item_t = typename iter_t::__item_t__>
@@ -229,31 +226,16 @@ struct hb_iter_with_fallback_t :
   hb_iter_fallback_mixin_t<iter_t, item_t>
 {
   protected:
-  hb_iter_with_fallback_t () = default;
-  hb_iter_with_fallback_t (const hb_iter_with_fallback_t &o HB_UNUSED) = default;
-  hb_iter_with_fallback_t (hb_iter_with_fallback_t &&o HB_UNUSED) = default;
-  hb_iter_with_fallback_t& operator = (const hb_iter_with_fallback_t &o HB_UNUSED) = default;
-  hb_iter_with_fallback_t& operator = (hb_iter_with_fallback_t &&o HB_UNUSED) = default;
+  hb_iter_with_fallback_t () {}
+  hb_iter_with_fallback_t (const hb_iter_with_fallback_t &o HB_UNUSED) :
+    hb_iter_t<iter_t, item_t> (o),
+    hb_iter_fallback_mixin_t<iter_t, item_t> (o) {}
+  void operator = (const hb_iter_with_fallback_t &o HB_UNUSED) {}
 };
 
 /*
  * Meta-programming predicates.
  */
-
-/* hb_is_iterator() / hb_is_iterator_of() */
-
-template<typename Iter, typename Item>
-struct hb_is_iterator_of
-{
-  template <typename Item2 = Item>
-  static hb_true_type impl (hb_priority<2>, hb_iter_t<Iter, hb_type_identity<Item2>> *);
-  static hb_false_type impl (hb_priority<0>, const void *);
-
-  public:
-  static constexpr bool value = decltype (impl (hb_prioritize, hb_declval (Iter*)))::value;
-};
-#define hb_is_iterator_of(Iter, Item) hb_is_iterator_of<Iter, Item>::value
-#define hb_is_iterator(Iter) hb_is_iterator_of (Iter, typename Iter::item_t)
 
 /* hb_is_iterable() */
 
@@ -263,53 +245,45 @@ struct hb_is_iterable
   private:
 
   template <typename U>
-  static auto impl (hb_priority<1>) -> decltype (hb_declval (U).iter (), hb_true_type ());
+  static auto impl (hb_priority<1>) -> decltype (hb_declval (U).iter (), hb_true_t ());
 
   template <typename>
-  static hb_false_type impl (hb_priority<0>);
+  static hb_false_t impl (hb_priority<0>);
 
   public:
-  static constexpr bool value = decltype (impl<T> (hb_prioritize))::value;
+
+  enum { value = decltype (impl<T> (hb_prioritize))::value };
 };
 #define hb_is_iterable(Iterable) hb_is_iterable<Iterable>::value
 
-/* hb_is_source_of() / hb_is_sink_of() */
+/* TODO Add hb_is_iterable_of().
+ * TODO Add random_access / sorted variants. */
+
+/* hb_is_iterator() / hb_is_random_access_iterator() / hb_is_sorted_iterator() */
+
+template <typename Iter, typename Item>
+static inline char _hb_is_iterator_of (hb_priority<0>, const void *) { return 0; }
+template <typename Iter,
+	  typename Item,
+	  typename Item2 = typename Iter::item_t,
+	  hb_enable_if (hb_is_cr_convertible_to (Item2, Item))>
+static inline int _hb_is_iterator_of (hb_priority<2>, hb_iter_t<Iter, Item2> *) { return 0; }
 
 template<typename Iter, typename Item>
-struct hb_is_source_of
-{
-  private:
-  template <typename Iter2 = Iter,
-	    hb_enable_if (hb_is_convertible (typename Iter2::item_t, hb_add_lvalue_reference<hb_add_const<Item>>))>
-  static hb_true_type impl (hb_priority<2>);
-  template <typename Iter2 = Iter>
-  static auto impl (hb_priority<1>) -> decltype (hb_declval (Iter2) >> hb_declval (Item &), hb_true_type ());
-  static hb_false_type impl (hb_priority<0>);
+struct hb_is_iterator_of { enum {
+  value = sizeof (int) == sizeof (_hb_is_iterator_of<Iter, Item> (hb_prioritize, hb_declval (Iter*))) }; };
+#define hb_is_iterator_of(Iter, Item) hb_is_iterator_of<Iter, Item>::value
+#define hb_is_iterator(Iter) hb_is_iterator_of (Iter, typename Iter::item_t)
 
-  public:
-  static constexpr bool value = decltype (impl (hb_prioritize))::value;
-};
-#define hb_is_source_of(Iter, Item) hb_is_source_of<Iter, Item>::value
+#define hb_is_random_access_iterator_of(Iter, Item) \
+  hb_is_iterator_of (Iter, Item) && Iter::is_random_access_iterator
+#define hb_is_random_access_iterator(Iter) \
+  hb_is_random_access_iterator_of (Iter, typename Iter::item_t)
 
-template<typename Iter, typename Item>
-struct hb_is_sink_of
-{
-  private:
-  template <typename Iter2 = Iter,
-	    hb_enable_if (hb_is_convertible (typename Iter2::item_t, hb_add_lvalue_reference<Item>))>
-  static hb_true_type impl (hb_priority<2>);
-  template <typename Iter2 = Iter>
-  static auto impl (hb_priority<1>) -> decltype (hb_declval (Iter2) << hb_declval (Item), hb_true_type ());
-  static hb_false_type impl (hb_priority<0>);
-
-  public:
-  static constexpr bool value = decltype (impl (hb_prioritize))::value;
-};
-#define hb_is_sink_of(Iter, Item) hb_is_sink_of<Iter, Item>::value
-
-/* This is commonly used, so define: */
-#define hb_is_sorted_source_of(Iter, Item) \
-	(hb_is_source_of(Iter, Item) && Iter::is_sorted_iterator)
+#define hb_is_sorted_iterator_of(Iter, Item) \
+  hb_is_iterator_of (Iter, Item) && Iter::is_sorted_iterator
+#define hb_is_sorted_iterator(Iter) \
+  hb_is_sorted_iterator_of (Iter, typename Iter::item_t)
 
 
 /* Range-based 'for' for iterables. */
@@ -348,26 +322,16 @@ operator | (Lhs&& lhs, Rhs&& rhs) HB_AUTO_RETURN (hb_forward<Rhs> (rhs) (hb_forw
 
 /* hb_map(), hb_filter(), hb_reduce() */
 
-enum  class hb_function_sortedness_t {
-  NOT_SORTED,
-  RETAINS_SORTING,
-  SORTED,
-};
-
-template <typename Iter, typename Proj, hb_function_sortedness_t Sorted,
+template <typename Iter, typename Proj,
 	 hb_requires (hb_is_iterator (Iter))>
 struct hb_map_iter_t :
-  hb_iter_t<hb_map_iter_t<Iter, Proj, Sorted>,
+  hb_iter_t<hb_map_iter_t<Iter, Proj>,
 	    decltype (hb_get (hb_declval (Proj), *hb_declval (Iter)))>
 {
   hb_map_iter_t (const Iter& it, Proj f_) : it (it), f (f_) {}
 
   typedef decltype (hb_get (hb_declval (Proj), *hb_declval (Iter))) __item_t__;
   static constexpr bool is_random_access_iterator = Iter::is_random_access_iterator;
-  static constexpr bool is_sorted_iterator =
-    Sorted == hb_function_sortedness_t::SORTED ? true :
-    Sorted == hb_function_sortedness_t::RETAINS_SORTING ? Iter::is_sorted_iterator :
-    false;
   __item_t__ __item__ () const { return hb_get (f.get (), *it); }
   __item_t__ __item_at__ (unsigned i) const { return hb_get (f.get (), it[i]); }
   bool __more__ () const { return bool (it); }
@@ -378,23 +342,23 @@ struct hb_map_iter_t :
   void __rewind__ (unsigned n) { it -= n; }
   hb_map_iter_t __end__ () const { return hb_map_iter_t (it.end (), f); }
   bool operator != (const hb_map_iter_t& o) const
-  { return it != o.it; }
+  { return it != o.it || f != o.f; }
 
   private:
   Iter it;
   hb_reference_wrapper<Proj> f;
 };
 
-template <typename Proj, hb_function_sortedness_t Sorted>
+template <typename Proj>
 struct hb_map_iter_factory_t
 {
   hb_map_iter_factory_t (Proj f) : f (f) {}
 
   template <typename Iter,
 	    hb_requires (hb_is_iterator (Iter))>
-  hb_map_iter_t<Iter, Proj, Sorted>
+  hb_map_iter_t<Iter, Proj>
   operator () (Iter it)
-  { return hb_map_iter_t<Iter, Proj, Sorted> (it, f); }
+  { return hb_map_iter_t<Iter, Proj> (it, f); }
 
   private:
   Proj f;
@@ -402,27 +366,11 @@ struct hb_map_iter_factory_t
 struct
 {
   template <typename Proj>
-  hb_map_iter_factory_t<Proj, hb_function_sortedness_t::NOT_SORTED>
+  hb_map_iter_factory_t<Proj>
   operator () (Proj&& f) const
-  { return hb_map_iter_factory_t<Proj, hb_function_sortedness_t::NOT_SORTED> (f); }
+  { return hb_map_iter_factory_t<Proj> (f); }
 }
 HB_FUNCOBJ (hb_map);
-struct
-{
-  template <typename Proj>
-  hb_map_iter_factory_t<Proj, hb_function_sortedness_t::RETAINS_SORTING>
-  operator () (Proj&& f) const
-  { return hb_map_iter_factory_t<Proj, hb_function_sortedness_t::RETAINS_SORTING> (f); }
-}
-HB_FUNCOBJ (hb_map_retains_sorting);
-struct
-{
-  template <typename Proj>
-  hb_map_iter_factory_t<Proj, hb_function_sortedness_t::SORTED>
-  operator () (Proj&& f) const
-  { return hb_map_iter_factory_t<Proj, hb_function_sortedness_t::SORTED> (f); }
-}
-HB_FUNCOBJ (hb_map_sorted);
 
 template <typename Iter, typename Pred, typename Proj,
 	 hb_requires (hb_is_iterator (Iter))>
@@ -438,10 +386,10 @@ struct hb_filter_iter_t :
   __item_t__ __item__ () const { return *it; }
   bool __more__ () const { return bool (it); }
   void __next__ () { do ++it; while (it && !hb_has (p.get (), hb_get (f.get (), *it))); }
-  void __prev__ () { do --it; while (it && !hb_has (p.get (), hb_get (f.get (), *it))); }
+  void __prev__ () { --it; }
   hb_filter_iter_t __end__ () const { return hb_filter_iter_t (it.end (), p, f); }
   bool operator != (const hb_filter_iter_t& o) const
-  { return it != o.it; }
+  { return it != o.it || p != o.p || f != o.f; }
 
   private:
   Iter it;
@@ -518,45 +466,20 @@ struct hb_zip_iter_t :
   static constexpr bool is_random_access_iterator =
     A::is_random_access_iterator &&
     B::is_random_access_iterator;
-  /* Note.  The following categorization is only valid if A is strictly sorted,
-   * ie. does NOT have duplicates.  Previously I tried to categorize sortedness
-   * more granularly, see commits:
-   *
-   *   513762849a683914fc266a17ddf38f133cccf072
-   *   4d3cf2adb669c345cc43832d11689271995e160a
-   *
-   * However, that was not enough, since hb_sorted_array_t, hb_sorted_vector_t,
-   * SortedArrayOf, etc all needed to be updated to add more variants.  At that
-   * point I saw it not worth the effort, and instead we now deem all sorted
-   * collections as essentially strictly-sorted for the purposes of zip.
-   *
-   * The above assumption is not as bad as it sounds.  Our "sorted" comes with
-   * no guarantees.  It's just a contract, put in place to help you remember,
-   * and think about, whether an iterator you receive is expected to be
-   * sorted or not.  As such, it's not perfect by definition, and should not
-   * be treated so.  The inaccuracy here just errs in the direction of being
-   * more permissive, so your code compiles instead of erring on the side of
-   * marking your zipped iterator unsorted in which case your code won't
-   * compile.
-   *
-   * This semantical limitation does NOT affect logic in any other place I
-   * know of as of this writing.
-   */
-  static constexpr bool is_sorted_iterator = A::is_sorted_iterator;
-
+  static constexpr bool is_sorted_iterator =
+    A::is_sorted_iterator &&
+    B::is_sorted_iterator;
   __item_t__ __item__ () const { return __item_t__ (*a, *b); }
   __item_t__ __item_at__ (unsigned i) const { return __item_t__ (a[i], b[i]); }
-  bool __more__ () const { return bool (a) && bool (b); }
+  bool __more__ () const { return a && b; }
   unsigned __len__ () const { return hb_min (a.len (), b.len ()); }
   void __next__ () { ++a; ++b; }
   void __forward__ (unsigned n) { a += n; b += n; }
   void __prev__ () { --a; --b; }
   void __rewind__ (unsigned n) { a -= n; b -= n; }
   hb_zip_iter_t __end__ () const { return hb_zip_iter_t (a.end (), b.end ()); }
-  /* Note, we should stop if ANY of the iters reaches end.  As such two compare
-   * unequal if both items are unequal, NOT if either is unequal. */
   bool operator != (const hb_zip_iter_t& o) const
-  { return a != o.a && b != o.b; }
+  { return a != o.a || b != o.b; }
 
   private:
   A a;
@@ -567,10 +490,57 @@ struct
   template <typename A, typename B,
 	    hb_requires (hb_is_iterable (A) && hb_is_iterable (B))>
   hb_zip_iter_t<hb_iter_type<A>, hb_iter_type<B>>
-  operator () (A&& a, B&& b) const
+  operator () (A& a, B &b) const
   { return hb_zip_iter_t<hb_iter_type<A>, hb_iter_type<B>> (hb_iter (a), hb_iter (b)); }
 }
 HB_FUNCOBJ (hb_zip);
+
+/* hb_enumerate */
+
+template <typename Iter,
+	 hb_requires (hb_is_iterator (Iter))>
+struct hb_enumerate_iter_t :
+  hb_iter_t<hb_enumerate_iter_t<Iter>,
+	    hb_pair_t<unsigned, typename Iter::item_t>>
+{
+  hb_enumerate_iter_t (const Iter& it) : i (0), it (it) {}
+
+  typedef hb_pair_t<unsigned, typename Iter::item_t> __item_t__;
+  static constexpr bool is_random_access_iterator = Iter::is_random_access_iterator;
+  static constexpr bool is_sorted_iterator = true;
+  __item_t__ __item__ () const { return __item_t__ (+i, *it); }
+  __item_t__ __item_at__ (unsigned j) const { return __item_t__ (i + j, it[j]); }
+  bool __more__ () const { return bool (it); }
+  unsigned __len__ () const { return it.len (); }
+  void __next__ () { ++i; ++it; }
+  void __forward__ (unsigned n) { i += n; it += n; }
+  void __prev__ () { --i; --it; }
+  void __rewind__ (unsigned n) { i -= n; it -= n; }
+  hb_enumerate_iter_t __end__ () const
+  {
+    if (is_random_access_iterator)
+      return *this + this->len ();
+    /* Above expression loops twice. Following loops once. */
+    auto it = *this;
+    while (it) ++it;
+    return it;
+  }
+  bool operator != (const hb_enumerate_iter_t& o) const
+  { return i != o.i || it != o.it; }
+
+  private:
+  unsigned i;
+  Iter it;
+};
+struct
+{
+  template <typename Iterable,
+	    hb_requires (hb_is_iterable (Iterable))>
+  hb_enumerate_iter_t<hb_iter_type<Iterable>>
+  operator () (Iterable&& it) const
+  { return hb_enumerate_iter_t<hb_iter_type<Iterable>> (hb_iter (it)); }
+}
+HB_FUNCOBJ (hb_enumerate);
 
 /* hb_apply() */
 
@@ -602,76 +572,55 @@ struct
 }
 HB_FUNCOBJ (hb_apply);
 
-/* hb_iota()/hb_range() */
+/* hb_iota() */
 
 template <typename T, typename S>
-struct hb_counter_iter_t :
-  hb_iter_t<hb_counter_iter_t<T, S>, T>
+struct hb_iota_iter_t :
+  hb_iter_t<hb_iota_iter_t<T, S>, T>
 {
-  hb_counter_iter_t (T start, T end_, S step) : v (start), end_ (end_for (start, end_, step)), step (step) {}
+  hb_iota_iter_t (T start, T end, S step) : v (start), end (end_for (start, end, step)), step (step) {}
 
   typedef T __item_t__;
   static constexpr bool is_random_access_iterator = true;
   static constexpr bool is_sorted_iterator = true;
-  __item_t__ __item__ () const { return +v; }
+  __item_t__ __item__ () const { return v; }
   __item_t__ __item_at__ (unsigned j) const { return v + j * step; }
-  bool __more__ () const { return v != end_; }
-  unsigned __len__ () const { return !step ? UINT_MAX : (end_ - v) / step; }
+  bool __more__ () const { return v != end; }
+  unsigned __len__ () const { return (end - v) / step; }
   void __next__ () { v += step; }
   void __forward__ (unsigned n) { v += n * step; }
   void __prev__ () { v -= step; }
   void __rewind__ (unsigned n) { v -= n * step; }
-  hb_counter_iter_t __end__ () const { return hb_counter_iter_t (end_, end_, step); }
-  bool operator != (const hb_counter_iter_t& o) const
-  { return v != o.v; }
+  hb_iota_iter_t __end__ () const { hb_iota_iter_t (end, end, step); }
+  bool operator != (const hb_iota_iter_t& o) const
+  { return v != o.v || end != o.end || step != o.step; }
 
   private:
-  static inline T end_for (T start, T end_, S step)
+  static inline T end_for (T start, T end, S step)
   {
-    if (!step)
-      return end_;
-    auto res = (end_ - start) % step;
+    auto res = (end - start) % step;
     if (!res)
-      return end_;
-    end_ += step - res;
-    return end_;
+      return end;
+    end += step - res;
+    return end;
   }
 
   private:
   T v;
-  T end_;
+  T end;
   S step;
 };
 struct
 {
-  template <typename T = unsigned, typename S = unsigned> hb_counter_iter_t<T, S>
-  operator () (T start = 0u, S&& step = 1u) const
-  { return hb_counter_iter_t<T, S> (start, step >= 0 ? hb_int_max (T) : hb_int_min (T), step); }
+  template <typename T = unsigned> hb_iota_iter_t<T, unsigned>
+  operator () (T end = (unsigned) -1) const
+  { return hb_iota_iter_t<T, unsigned> (0, end, 1u); }
+
+  template <typename T, typename S = unsigned> hb_iota_iter_t<T, S>
+  operator () (T start, T end, S&& step = 1u) const
+  { return hb_iota_iter_t<T, S> (start, end, step); }
 }
 HB_FUNCOBJ (hb_iota);
-struct
-{
-  template <typename T = unsigned> hb_counter_iter_t<T, unsigned>
-  operator () (T end = (unsigned) -1) const
-  { return hb_counter_iter_t<T, unsigned> (0, end, 1u); }
-
-  template <typename T, typename S = unsigned> hb_counter_iter_t<T, S>
-  operator () (T start, T end, S&& step = 1u) const
-  { return hb_counter_iter_t<T, S> (start, end, step); }
-}
-HB_FUNCOBJ (hb_range);
-
-/* hb_enumerate */
-
-struct
-{
-  template <typename Iterable,
-	    typename Index = unsigned,
-	    hb_requires (hb_is_iterable (Iterable))>
-  auto operator () (Iterable&& it, Index start = 0u) const HB_AUTO_RETURN
-  ( hb_zip (hb_iota (start), it) )
-}
-HB_FUNCOBJ (hb_enumerate);
 
 
 /* hb_sink() */

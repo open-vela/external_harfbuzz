@@ -5,35 +5,21 @@ Values defined in `hb-debug.hh`.
 
 ```shell
 # quick sanity check
-time (make -j4 CPPFLAGS='-DHB_DEBUG_SUBSET=100' \
-  && (make -j4 -C test/api check || cat test/api/test-suite.log))
+time (make CPPFLAGS='-DHB_DEBUG_SUBSET=100' \
+  && make -C test/api check || cat test/api/test-suite.log)
 
-# slower sanity check
-time (make -j4 CPPFLAGS='-DHB_DEBUG_SUBSET=100' \
-   && make -j4 -C src check \
-   && make -j4 -C test/api check \
-   && make -j4 -C test/subset check)
+# slower santiy check
+time (make CPPFLAGS='-DHB_DEBUG_SUBSET=100' \
+   && make -C src check \
+   && make -C test/api check \
+   && make -C test/subset check)
 
 # confirm you didn't break anything else
-time (make -j4 CPPFLAGS='-DHB_DEBUG_SUBSET=100' \
-  && make -j4 check)
+time (make CPPFLAGS='-DHB_DEBUG_SUBSET=100' \
+  && make check)
 
 # often catches files you didn't add, e.g. test fonts to EXTRA_DIST
 make distcheck
-```
-
-### Run tests with asan
-
-**NOTE**: this sometimes yields harder to read results than the full fuzzer
-
-```shell
-# For nice symbols tell asan how to symoblize. Note that it doesn't like versioned copies like llvm-symbolizer-3.8
-# export ASAN_SYMBOLIZER_PATH=path to version-less llvm-symbolizer
-# ex
-export ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-3.8/bin/llvm-symbolizer
-
-./configure CC=clang CXX=clang++ CPPFLAGS=-fsanitize=address LDFLAGS=-fsanitize=address
-# make/run tests as usual
 ```
 
 ### Debug with GDB
@@ -65,11 +51,7 @@ cmake -DHB_CHECK=ON -Bbuild -H. -GNinja && ninja -Cbuild && CTEST_OUTPUT_ON_FAIL
 # push your changs to a branch on googlefonts/harfbuzz
 # In a local copy of oss-fuzz, edit projects/harfbuzz/Dockerfile
 # Change the git clone to pull your branch
-
-# Do this periodically
 sudo python infra/helper.py build_image harfbuzz
-
-# Do these to update/run
 sudo python infra/helper.py build_fuzzers --sanitizer address harfbuzz
 sudo python infra/helper.py run_fuzzer harfbuzz hb-subset-fuzzer
 ```

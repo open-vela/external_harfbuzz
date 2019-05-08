@@ -50,9 +50,8 @@ bin_PROGRAMS += hb-shape
 
 hb_subset_SOURCES = $(HB_SUBSET_CLI_sources)
 hb_subset_LDADD = \
-	$(top_builddir)/src/libharfbuzz-subset.la \
-	$(LDADD)
-
+	$(LDADD) \
+	$(top_builddir)/src/libharfbuzz-subset.la
 bin_PROGRAMS += hb-subset
 
 hb_ot_shape_closure_SOURCES = $(HB_OT_SHAPE_CLOSURE_sources)

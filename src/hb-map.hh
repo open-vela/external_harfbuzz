@@ -43,8 +43,8 @@ struct hb_hashmap_t
   hb_hashmap_t ()  { init (); }
   ~hb_hashmap_t () { fini (); }
 
-  static_assert (hb_is_integral (K) || hb_is_pointer (K), "");
-  static_assert (hb_is_integral (V) || hb_is_pointer (V), "");
+  static_assert (hb_is_integer (K) || hb_is_pointer (K), "");
+  static_assert (hb_is_integer (V) || hb_is_pointer (V), "");
 
   /* TODO If key type is a pointer, keep hash in item_t and use to:
    * 1. avoid rehashing when resizing table, and
@@ -221,19 +221,15 @@ struct hb_hashmap_t
     + hb_array (items, mask ? mask + 1 : 0)
     | hb_filter (&item_t::is_real)
     | hb_map (&item_t::key)
-    | hb_map (hb_ridentity)
+    | hb_map (hb_rvalue)
   )
   auto values () const HB_AUTO_RETURN
   (
     + hb_array (items, mask ? mask + 1 : 0)
     | hb_filter (&item_t::is_real)
     | hb_map (&item_t::value)
-    | hb_map (hb_ridentity)
+    | hb_map (hb_rvalue)
   )
-
-  /* Sink interface. */
-  hb_hashmap_t<K, V, kINVALID, vINVALID>& operator << (const hb_pair_t<K, V>& v)
-  { set (v.first, v.second); return *this; }
 
   protected:
 

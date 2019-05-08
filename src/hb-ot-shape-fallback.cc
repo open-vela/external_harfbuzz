@@ -166,7 +166,7 @@ _hb_ot_shape_fallback_mark_position_recategorize_marks (const hb_ot_shape_plan_t
 						        hb_font_t *font HB_UNUSED,
 						        hb_buffer_t  *buffer)
 {
-#ifdef HB_NO_OT_SHAPE_FALLBACK
+#if defined(HB_NO_OT_SHAPE_FALLBACK)
   return;
 #endif
 
@@ -438,7 +438,7 @@ _hb_ot_shape_fallback_mark_position (const hb_ot_shape_plan_t *plan,
 				     hb_buffer_t  *buffer,
 				     bool adjust_offsets_when_zeroing)
 {
-#ifdef HB_NO_OT_SHAPE_FALLBACK
+#if defined(HB_NO_OT_SHAPE_FALLBACK)
   return;
 #endif
 
@@ -456,7 +456,6 @@ _hb_ot_shape_fallback_mark_position (const hb_ot_shape_plan_t *plan,
 }
 
 
-#ifndef HB_DISABLE_DEPRECATED
 struct hb_ot_shape_fallback_kern_driver_t
 {
   hb_ot_shape_fallback_kern_driver_t (hb_font_t   *font_,
@@ -475,7 +474,6 @@ struct hb_ot_shape_fallback_kern_driver_t
   hb_font_t *font;
   hb_direction_t direction;
 };
-#endif
 
 /* Performs font-assisted kerning. */
 void
@@ -483,11 +481,10 @@ _hb_ot_shape_fallback_kern (const hb_ot_shape_plan_t *plan,
 			    hb_font_t *font,
 			    hb_buffer_t *buffer)
 {
-#ifdef HB_NO_OT_SHAPE_FALLBACK
+#if defined(HB_NO_OT_SHAPE_FALLBACK)
   return;
 #endif
 
-#ifndef HB_DISABLE_DEPRECATED
   if (HB_DIRECTION_IS_HORIZONTAL (buffer->props.direction) ?
       !font->has_glyph_h_kerning_func () :
       !font->has_glyph_v_kerning_func ())
@@ -504,7 +501,6 @@ _hb_ot_shape_fallback_kern (const hb_ot_shape_plan_t *plan,
 
   if (reverse)
     buffer->reverse ();
-#endif
 }
 
 
