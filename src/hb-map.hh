@@ -221,15 +221,19 @@ struct hb_hashmap_t
     + hb_array (items, mask ? mask + 1 : 0)
     | hb_filter (&item_t::is_real)
     | hb_map (&item_t::key)
-    | hb_map (hb_rvalue)
+    | hb_map (hb_ridentity)
   )
   auto values () const HB_AUTO_RETURN
   (
     + hb_array (items, mask ? mask + 1 : 0)
     | hb_filter (&item_t::is_real)
     | hb_map (&item_t::value)
-    | hb_map (hb_rvalue)
+    | hb_map (hb_ridentity)
   )
+
+  /* Sink interface. */
+  hb_hashmap_t<K, V, kINVALID, vINVALID>& operator << (const hb_pair_t<K, V>& v)
+  { set (v.first, v.second); return *this; }
 
   protected:
 

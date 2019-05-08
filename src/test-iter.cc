@@ -82,8 +82,10 @@ test_iterator_non_default_constructable (Iter it)
     (void) _;
 
   it += it.len ();
-  it = it + 10;
-  it = 10 + it;
+  if (0)
+    it = it + 10;
+  if (0)
+    it = 10 + it;
 
   assert (*it == it[0]);
 
@@ -125,7 +127,7 @@ main (int argc, char **argv)
   array_iter_t<const int> s2 (v); /* Implicit conversion from vector. */
   array_iter_t<int> t (dst);
 
-  static_assert (hb_is_random_access_iterator (array_iter_t<int>), "");
+  static_assert (array_iter_t<int>::is_random_access_iterator, "");
 
   some_array_t<const int> a (src);
 
@@ -158,10 +160,11 @@ main (int argc, char **argv)
 
   test_iterator (hb_zip (st, v));
   test_iterator_non_default_constructable (hb_enumerate (st));
+  test_iterator_non_default_constructable (hb_enumerate (st, -5));
   test_iterator_non_default_constructable (hb_enumerate (hb_iter (st)));
   test_iterator_non_default_constructable (hb_enumerate (hb_iter (st) + 1));
   test_iterator_non_default_constructable (hb_iter (st) | hb_filter ());
-  test_iterator_non_default_constructable (hb_iter (st) | hb_map (hb_rvalue));
+  test_iterator_non_default_constructable (hb_iter (st) | hb_map (hb_lidentity));
 
   assert (true == hb_all (st));
   assert (false == hb_all (st, 42u));
@@ -264,14 +267,17 @@ main (int argc, char **argv)
   s >> vl;
 
   hb_iota ();
-  assert (hb_iota (9).len () == 9);
-  assert (hb_iota (2, 9).len () == 7);
-  assert (hb_iota (2, 9, 3).len () == 3);
-  assert (hb_iota (2, 8, 3).len () == 2);
-  assert (hb_iota (2, 7, 3).len () == 2);
-  assert (hb_iota (-2, -9, -3).len () == 3);
-  assert (hb_iota (-2, -8, -3).len () == 2);
-  assert (hb_iota (-2, -7, -3).len () == 2);
+  hb_iota (3);
+  hb_iota (3, 2);
+  hb_range ();
+  assert (hb_range (9).len () == 9);
+  assert (hb_range (2, 9).len () == 7);
+  assert (hb_range (2, 9, 3).len () == 3);
+  assert (hb_range (2, 8, 3).len () == 2);
+  assert (hb_range (2, 7, 3).len () == 2);
+  assert (hb_range (-2, -9, -3).len () == 3);
+  assert (hb_range (-2, -8, -3).len () == 2);
+  assert (hb_range (-2, -7, -3).len () == 2);
 
   return 0;
 }
