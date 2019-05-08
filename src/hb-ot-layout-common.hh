@@ -138,7 +138,7 @@ struct RecordListOf : RecordArrayOf<Type>
   bool subset (hb_subset_context_t *c) const
   {
     TRACE_SUBSET (this);
-    auto *out = c->serializer->embed (*this);
+    struct RecordListOf<Type> *out = c->serializer->embed (*this);
     if (unlikely (!out)) return_trace (false);
     unsigned int count = this->len;
     for (unsigned int i = 0; i < count; i++)
@@ -226,7 +226,7 @@ struct LangSys
   {
     if (reqFeatureIndex == 0xFFFFu)
       return Index::NOT_FOUND_INDEX;
-   return reqFeatureIndex;
+   return reqFeatureIndex;;
   }
 
   LangSys* copy (hb_serialize_context_t *c) const
@@ -277,7 +277,7 @@ struct Script
   bool subset (hb_subset_context_t *c) const
   {
     TRACE_SUBSET (this);
-    auto *out = c->serializer->embed (*this);
+    struct Script *out = c->serializer->embed (*this);
     if (unlikely (!out)) return_trace (false);
     out->defaultLangSys.serialize_copy (c->serializer, this+defaultLangSys, out);
     unsigned int count = langSys.len;
@@ -559,7 +559,7 @@ struct Feature
   bool subset (hb_subset_context_t *c) const
   {
     TRACE_SUBSET (this);
-    auto *out = c->serializer->embed (*this);
+    struct Feature *out = c->serializer->embed (*this);
     if (unlikely (!out)) return_trace (false);
     out->featureParams = 0; /* TODO(subset) FeatureParams. */
     return_trace (true);
@@ -648,18 +648,15 @@ struct Lookup
   unsigned int get_subtable_count () const { return subTable.len; }
 
   template <typename TSubTable>
+  const TSubTable& get_subtable (unsigned int i) const
+  { return this+CastR<OffsetArrayOf<TSubTable>> (subTable)[i]; }
+
+  template <typename TSubTable>
   const OffsetArrayOf<TSubTable>& get_subtables () const
   { return CastR<OffsetArrayOf<TSubTable>> (subTable); }
   template <typename TSubTable>
   OffsetArrayOf<TSubTable>& get_subtables ()
   { return CastR<OffsetArrayOf<TSubTable>> (subTable); }
-
-  template <typename TSubTable>
-  const TSubTable& get_subtable (unsigned int i) const
-  { return this+get_subtables<TSubTable> ()[i]; }
-  template <typename TSubTable>
-  TSubTable& get_subtable (unsigned int i)
-  { return this+get_subtables<TSubTable> ()[i]; }
 
   unsigned int get_size () const
   {
@@ -722,7 +719,7 @@ struct Lookup
   bool subset (hb_subset_context_t *c) const
   {
     TRACE_SUBSET (this);
-    auto *out = c->serializer->embed (*this);
+    struct Lookup *out = c->serializer->embed (*this);
     if (unlikely (!out)) return_trace (false);
 
     /* Subset the actual subtables. */
@@ -748,27 +745,23 @@ struct Lookup
       if (!markFilteringSet.sanitize (c)) return_trace (false);
     }
 
-    if (unlikely (!get_subtables<TSubTable> ().sanitize (c, this, get_type ())))
+    if (unlikely (!CastR<OffsetArrayOf<TSubTable>> (subTable)
+		   .sanitize (c, this, get_type ())))
       return_trace (false);
 
-    if (unlikely (get_type () == TSubTable::Extension && !c->get_edit_count ()))
+    if (unlikely (get_type () == TSubTable::Extension))
     {
       /* The spec says all subtables of an Extension lookup should
        * have the same type, which shall not be the Extension type
        * itself (but we already checked for that).
-       * This is specially important if one has a reverse type!
-       *
-       * We only do this if sanitizer edit_count is zero.  Otherwise,
-       * some of the subtables might have become insane after they
-       * were sanity-checked by the edits of subsequent subtables.
-       * https://bugs.chromium.org/p/chromium/issues/detail?id=960331
-       */
+       * This is specially important if one has a reverse type! */
       unsigned int type = get_subtable<TSubTable> (0).u.extension.get_type ();
       unsigned int count = get_subtable_count ();
       for (unsigned int i = 1; i < count; i++)
 	if (get_subtable<TSubTable> (i).u.extension.get_type () != type)
 	  return_trace (false);
     }
+    return_trace (true);
     return_trace (true);
   }
 
@@ -804,7 +797,7 @@ struct CoverageFormat1
   }
 
   template <typename Iterator,
-      hb_requires (hb_is_sorted_source_of (Iterator, hb_codepoint_t))>
+	    hb_requires (hb_is_sorted_iterator_of (Iterator, const GlyphID))>
   bool serialize (hb_serialize_context_t *c, Iterator glyphs)
   {
     TRACE_SERIALIZE (this);
@@ -873,7 +866,7 @@ struct CoverageFormat2
   }
 
   template <typename Iterator,
-      hb_requires (hb_is_sorted_source_of (Iterator, hb_codepoint_t))>
+	    hb_requires (hb_is_sorted_iterator_of (Iterator, const GlyphID))>
   bool serialize (hb_serialize_context_t *c, Iterator glyphs)
   {
     TRACE_SERIALIZE (this);
@@ -884,36 +877,30 @@ struct CoverageFormat2
       rangeRecord.len = 0;
       return_trace (true);
     }
+    /* TODO(iter) Port to non-random-access iterator interface. */
+    unsigned int count = glyphs.len ();
 
-    /* TODO(iter) Write more efficiently? */
+    unsigned int num_ranges = 1;
+    for (unsigned int i = 1; i < count; i++)
+      if (glyphs[i - 1] + 1 != glyphs[i])
+	num_ranges++;
+    rangeRecord.len = num_ranges;
+    if (unlikely (!c->extend (rangeRecord))) return_trace (false);
 
-    unsigned num_ranges = 0;
-    hb_codepoint_t last = (hb_codepoint_t) -2;
-    for (auto g: glyphs)
+    unsigned int range = 0;
+    rangeRecord[range].start = glyphs[0];
+    rangeRecord[range].value = 0;
+    for (unsigned int i = 1; i < count; i++)
     {
-      if (last + 1 != g)
-        num_ranges++;
-      last = g;
-    }
-
-    if (unlikely (!rangeRecord.serialize (c, num_ranges))) return_trace (false);
-
-    unsigned count = 0;
-    unsigned range = (unsigned) -1;
-    last = (hb_codepoint_t) -2;
-    for (auto g: glyphs)
-    {
-      if (last + 1 != g)
+      if (glyphs[i - 1] + 1 != glyphs[i])
       {
-        range++;
-	rangeRecord[range].start = g;
-	rangeRecord[range].value = count;
+	rangeRecord[range].end = glyphs[i - 1];
+	range++;
+	rangeRecord[range].start = glyphs[i];
+	rangeRecord[range].value = i;
       }
-      rangeRecord[range].end = g;
-      last = g;
-      count++;
     }
-
+    rangeRecord[range].end = glyphs[count - 1];
     return_trace (true);
   }
 
@@ -1043,22 +1030,18 @@ struct Coverage
   }
 
   template <typename Iterator,
-      hb_requires (hb_is_sorted_source_of (Iterator, hb_codepoint_t))>
+	    hb_requires (hb_is_sorted_iterator_of (Iterator, const GlyphID))>
   bool serialize (hb_serialize_context_t *c, Iterator glyphs)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
 
-    unsigned count = 0;
-    unsigned num_ranges = 0;
-    hb_codepoint_t last = (hb_codepoint_t) -2;
-    for (auto g: glyphs)
-    {
-      if (last + 1 != g)
-        num_ranges++;
-      last = g;
-      count++;
-    }
+    /* TODO(iter) Port to non-random-access iterator interface. */
+    unsigned int count = glyphs.len ();
+    unsigned int num_ranges = 1;
+    for (unsigned int i = 1; i < count; i++)
+      if (glyphs[i - 1] + 1 != glyphs[i])
+	num_ranges++;
     u.format = count * 2 < num_ranges * 3 ? 1 : 2;
 
     switch (u.format)
@@ -1224,7 +1207,7 @@ struct ClassDefFormat1
     hb_codepoint_t glyph_max = +glyphs | hb_reduce (hb_max, 0u);
 
     startGlyph = glyph_min;
-    c->check_assign (classValue.len, glyph_max - glyph_min + 1);
+    classValue.len = glyph_max - glyph_min + 1;
     if (unlikely (!c->extend (classValue))) return_trace (false);
 
     for (unsigned int i = 0; i < glyphs.length; i++)

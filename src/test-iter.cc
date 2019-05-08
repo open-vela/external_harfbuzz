@@ -125,7 +125,7 @@ main (int argc, char **argv)
   array_iter_t<const int> s2 (v); /* Implicit conversion from vector. */
   array_iter_t<int> t (dst);
 
-  static_assert (array_iter_t<int>::is_random_access_iterator, "");
+  static_assert (hb_is_random_access_iterator (array_iter_t<int>), "");
 
   some_array_t<const int> a (src);
 
@@ -158,11 +158,10 @@ main (int argc, char **argv)
 
   test_iterator (hb_zip (st, v));
   test_iterator_non_default_constructable (hb_enumerate (st));
-  test_iterator_non_default_constructable (hb_enumerate (st, -5));
   test_iterator_non_default_constructable (hb_enumerate (hb_iter (st)));
   test_iterator_non_default_constructable (hb_enumerate (hb_iter (st) + 1));
   test_iterator_non_default_constructable (hb_iter (st) | hb_filter ());
-  test_iterator_non_default_constructable (hb_iter (st) | hb_map (hb_lidentity));
+  test_iterator_non_default_constructable (hb_iter (st) | hb_map (hb_rvalue));
 
   assert (true == hb_all (st));
   assert (false == hb_all (st, 42u));
@@ -203,8 +202,8 @@ main (int argc, char **argv)
   ;
 
   + hb_iter (src)
-  | hb_map ([] (int i) { return 1; })
-  | hb_reduce ([=] (int acc, int value) { return acc; }, 2)
+  | hb_map ([&] (int i) -> int { return 1; })
+  | hb_reduce ([&] (int acc, int value) -> int { return acc; }, 2)
   ;
 
   using map_pair_t = hb_item_type<hb_map_t>;
@@ -251,8 +250,8 @@ main (int argc, char **argv)
 
   unsigned int temp3 = 0;
   + hb_iter(src)
-  | hb_map([&] (int i) { return ++temp3; })
-  | hb_reduce([&] (float acc, int value) { return acc + value; }, 0)
+  | hb_map([&] (int i) -> int { return ++temp3; })
+  | hb_reduce([&] (float acc, int value) -> float { return acc + value; }, 0)
   ;
   hb_map_destroy (result);
 
@@ -265,17 +264,14 @@ main (int argc, char **argv)
   s >> vl;
 
   hb_iota ();
-  hb_iota (3);
-  hb_iota (3, 2);
-  hb_range ();
-  assert (hb_range (9).len () == 9);
-  assert (hb_range (2, 9).len () == 7);
-  assert (hb_range (2, 9, 3).len () == 3);
-  assert (hb_range (2, 8, 3).len () == 2);
-  assert (hb_range (2, 7, 3).len () == 2);
-  assert (hb_range (-2, -9, -3).len () == 3);
-  assert (hb_range (-2, -8, -3).len () == 2);
-  assert (hb_range (-2, -7, -3).len () == 2);
+  assert (hb_iota (9).len () == 9);
+  assert (hb_iota (2, 9).len () == 7);
+  assert (hb_iota (2, 9, 3).len () == 3);
+  assert (hb_iota (2, 8, 3).len () == 2);
+  assert (hb_iota (2, 7, 3).len () == 2);
+  assert (hb_iota (-2, -9, -3).len () == 3);
+  assert (hb_iota (-2, -8, -3).len () == 2);
+  assert (hb_iota (-2, -7, -3).len () == 2);
 
   return 0;
 }

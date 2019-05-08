@@ -108,7 +108,7 @@ struct hdmx
     this->sizeDeviceRecord = DeviceRecord::get_size (it ? (*it).second.len () : 0);
 
     + it
-    | hb_apply ([c] (const hb_item_type<Iterator>& _) {
+    | hb_apply ([&] (const hb_item_type<Iterator>& _) {
 		  c->start_embed<DeviceRecord> ()->serialize (c, _.first, _.second);
 		})
     ;
@@ -125,14 +125,14 @@ struct hdmx
     if (unlikely (!hdmx_prime)) return_trace (false);
 
     auto it =
-    + hb_range ((unsigned) numRecords)
-    | hb_map ([c, this] (unsigned _)
+    + hb_iota ((unsigned) numRecords)
+    | hb_map ([&] (unsigned _)
 	{
 	  const DeviceRecord *device_record =
 	    &StructAtOffset<DeviceRecord> (&firstDeviceRecord,
 					   _ * sizeDeviceRecord);
 	  auto row =
-	    + hb_range (c->plan->num_output_glyphs ())
+	    + hb_iota (c->plan->num_output_glyphs ())
 	    | hb_map (c->plan->reverse_glyph_map)
 	    | hb_map ([=] (hb_codepoint_t _)
 		      {

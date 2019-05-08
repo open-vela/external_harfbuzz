@@ -36,28 +36,17 @@
 
 struct
 {
-  /* Note.  This is dangerous in that if it's passed an rvalue, it returns rvalue-reference. */
   template <typename T> auto
   operator () (T&& v) const HB_AUTO_RETURN ( hb_forward<T> (v) )
 }
 HB_FUNCOBJ (hb_identity);
-struct
-{
-  /* Like identity(), but only retains lvalue-references.  Rvalues are returned as rvalues. */
-  template <typename T> T&
-  operator () (T& v) const { return v; }
 
-  template <typename T> hb_remove_reference<T>
-  operator () (T&& v) const { return v; }
-}
-HB_FUNCOBJ (hb_lidentity);
 struct
 {
-  /* Like identity(), but always returns rvalue. */
   template <typename T> hb_remove_reference<T>
   operator () (T&& v) const { return v; }
 }
-HB_FUNCOBJ (hb_ridentity);
+HB_FUNCOBJ (hb_rvalue);
 
 struct
 {
@@ -73,7 +62,7 @@ struct
   impl (const T& v, hb_priority<1>) const HB_RETURN (uint32_t, hb_deref (v).hash ())
 
   template <typename T,
-	    hb_enable_if (hb_is_integral (T))> auto
+	    hb_enable_if (hb_is_integer (T))> auto
   impl (const T& v, hb_priority<0>) const HB_AUTO_RETURN
   (
     /* Knuth's multiplicative method: */
@@ -118,52 +107,6 @@ struct
   )
 }
 HB_FUNCOBJ (hb_invoke);
-
-template <unsigned Pos, typename Appl, typename V>
-struct hb_partial_t
-{
-  hb_partial_t (Appl a, V v) : a (a), v (v) {}
-
-  static_assert (Pos > 0, "");
-
-  template <typename ...Ts,
-	    unsigned P = Pos,
-	    hb_enable_if (P == 1)> auto
-  operator () (Ts&& ...ds) -> decltype (hb_invoke (hb_declval (Appl),
-						   hb_declval (V),
-						   hb_declval (Ts)...))
-  {
-    return hb_invoke (hb_forward<Appl> (a),
-		      hb_forward<V> (v),
-		      hb_forward<Ts> (ds)...);
-  }
-  template <typename T0, typename ...Ts,
-	    unsigned P = Pos,
-	    hb_enable_if (P == 2)> auto
-  operator () (T0&& d0, Ts&& ...ds) -> decltype (hb_invoke (hb_declval (Appl),
-							    hb_declval (T0),
-							    hb_declval (V),
-							    hb_declval (Ts)...))
-  {
-    return hb_invoke (hb_forward<Appl> (a),
-		      hb_forward<T0> (d0),
-		      hb_forward<V> (v),
-		      hb_forward<Ts> (ds)...);
-  }
-
-  private:
-  hb_reference_wrapper<Appl> a;
-  V v;
-};
-template <unsigned Pos=1, typename Appl, typename V>
-auto hb_partial (Appl&& a, V&& v) HB_AUTO_RETURN
-(( hb_partial_t<Pos, Appl, V> (a, v) ))
-
-#define HB_PARTIALIZE(Pos) \
-  template <typename _T> \
-  auto operator () (_T&& _v) const HB_AUTO_RETURN (hb_partial<Pos> (this, hb_forward<_T> (_v))) \
-  static_assert (true, "")
-
 
 struct
 {
@@ -261,40 +204,27 @@ struct hb_pair_t
   typedef hb_pair_t<T1, T2> pair_t;
 
   hb_pair_t (T1 a, T2 b) : first (a), second (b) {}
-
-  template <typename Q1, typename Q2,
-	    hb_enable_if (hb_is_convertible (T1, Q1) &&
-			  hb_is_convertible (T2, T2))>
-  operator hb_pair_t<Q1, Q2> () { return hb_pair_t<Q1, Q2> (first, second); }
-
-  hb_pair_t<T1, T2> reverse () const
-  { return hb_pair_t<T1, T2> (second, first); }
+  hb_pair_t (const pair_t& o) : first (o.first), second (o.second) {}
 
   bool operator == (const pair_t& o) const { return first == o.first && second == o.second; }
-  bool operator != (const pair_t& o) const { return !(*this == o); }
-  bool operator < (const pair_t& o) const { return first < o.first || (first == o.first && second < o.second); }
-  bool operator >= (const pair_t& o) const { return !(*this < o); }
-  bool operator > (const pair_t& o) const { return first > o.first || (first == o.first && second > o.second); }
-  bool operator <= (const pair_t& o) const { return !(*this > o); }
 
   T1 first;
   T2 second;
 };
-#define hb_pair_t(T1,T2) hb_pair_t<T1, T2>
 template <typename T1, typename T2> static inline hb_pair_t<T1, T2>
 hb_pair (T1&& a, T2&& b) { return hb_pair_t<T1, T2> (a, b); }
 
 struct
 {
-  template <typename Pair> typename Pair::first_t
-  operator () (const Pair& pair) const { return pair.first; }
+  template <typename Pair> auto
+  operator () (const Pair& pair) const HB_AUTO_RETURN (pair.first)
 }
 HB_FUNCOBJ (hb_first);
 
 struct
 {
-  template <typename Pair> typename Pair::second_t
-  operator () (const Pair& pair) const { return pair.second; }
+  template <typename Pair> auto
+  operator () (const Pair& pair) const HB_AUTO_RETURN (pair.second)
 }
 HB_FUNCOBJ (hb_second);
 
@@ -304,16 +234,34 @@ HB_FUNCOBJ (hb_second);
  * comparing integers of different signedness. */
 struct
 {
+  private:
   template <typename T, typename T2> auto
-  operator () (T&& a, T2&& b) const HB_AUTO_RETURN
+  impl (T&& a, T2&& b) const HB_AUTO_RETURN
   (hb_forward<T> (a) <= hb_forward<T2> (b) ? hb_forward<T> (a) : hb_forward<T2> (b))
+
+  public:
+  template <typename T> auto
+  operator () (T&& a) const HB_AUTO_RETURN (hb_forward<T> (a))
+
+  template <typename T, typename... Ts> auto
+  operator () (T&& a, Ts&& ...ds) const HB_AUTO_RETURN
+  (impl (hb_forward<T> (a), (*this) (hb_forward<Ts> (ds)...)))
 }
 HB_FUNCOBJ (hb_min);
 struct
 {
+  private:
   template <typename T, typename T2> auto
-  operator () (T&& a, T2&& b) const HB_AUTO_RETURN
+  impl (T&& a, T2&& b) const HB_AUTO_RETURN
   (hb_forward<T> (a) >= hb_forward<T2> (b) ? hb_forward<T> (a) : hb_forward<T2> (b))
+
+  public:
+  template <typename T> auto
+  operator () (T&& a) const HB_AUTO_RETURN (hb_forward<T> (a))
+
+  template <typename T, typename... Ts> auto
+  operator () (T&& a, Ts&& ...ds) const HB_AUTO_RETURN
+  (impl (hb_forward<T> (a), (*this) (hb_forward<Ts> (ds)...)))
 }
 HB_FUNCOBJ (hb_max);
 
@@ -792,83 +740,30 @@ hb_codepoint_parse (const char *s, unsigned int len, int base, hb_codepoint_t *o
 }
 
 
-/* Operators. */
-
-struct hb_bitwise_and
-{ HB_PARTIALIZE(2);
+struct HbOpOr
+{
+  static constexpr bool passthru_left = true;
+  static constexpr bool passthru_right = true;
+  template <typename T> static void process (T &o, const T &a, const T &b) { o = a | b; }
+};
+struct HbOpAnd
+{
   static constexpr bool passthru_left = false;
   static constexpr bool passthru_right = false;
-  template <typename T> auto
-   operator () (const T &a, const T &b) const HB_AUTO_RETURN (a & b)
-}
-HB_FUNCOBJ (hb_bitwise_and);
-struct hb_bitwise_or
-{ HB_PARTIALIZE(2);
-  static constexpr bool passthru_left = true;
-  static constexpr bool passthru_right = true;
-  template <typename T> auto
-   operator () (const T &a, const T &b) const HB_AUTO_RETURN (a | b)
-}
-HB_FUNCOBJ (hb_bitwise_or);
-struct hb_bitwise_xor
-{ HB_PARTIALIZE(2);
-  static constexpr bool passthru_left = true;
-  static constexpr bool passthru_right = true;
-  template <typename T> auto
-   operator () (const T &a, const T &b) const HB_AUTO_RETURN (a ^ b)
-}
-HB_FUNCOBJ (hb_bitwise_xor);
-struct hb_bitwise_sub
-{ HB_PARTIALIZE(2);
+  template <typename T> static void process (T &o, const T &a, const T &b) { o = a & b; }
+};
+struct HbOpMinus
+{
   static constexpr bool passthru_left = true;
   static constexpr bool passthru_right = false;
-  template <typename T> auto
-   operator () (const T &a, const T &b) const HB_AUTO_RETURN (a & ~b)
-}
-HB_FUNCOBJ (hb_bitwise_sub);
-
-struct
-{ HB_PARTIALIZE(2);
-  template <typename T, typename T2> auto
-  operator () (const T &a, const T2 &b) const HB_AUTO_RETURN (a + b)
-}
-HB_FUNCOBJ (hb_add);
-struct
-{ HB_PARTIALIZE(2);
-  template <typename T, typename T2> auto
-  operator () (const T &a, const T2 &b) const HB_AUTO_RETURN (a - b)
-}
-HB_FUNCOBJ (hb_sub);
-struct
-{ HB_PARTIALIZE(2);
-  template <typename T, typename T2> auto
-  operator () (const T &a, const T2 &b) const HB_AUTO_RETURN (a * b)
-}
-HB_FUNCOBJ (hb_mul);
-struct
-{ HB_PARTIALIZE(2);
-  template <typename T, typename T2> auto
-  operator () (const T &a, const T2 &b) const HB_AUTO_RETURN (a / b)
-}
-HB_FUNCOBJ (hb_div);
-struct
-{ HB_PARTIALIZE(2);
-  template <typename T, typename T2> auto
-  operator () (const T &a, const T2 &b) const HB_AUTO_RETURN (a % b)
-}
-HB_FUNCOBJ (hb_mod);
-struct
+  template <typename T> static void process (T &o, const T &a, const T &b) { o = a & ~b; }
+};
+struct HbOpXor
 {
-  template <typename T> auto
-  operator () (const T &a) const HB_AUTO_RETURN (+a)
-}
-HB_FUNCOBJ (hb_pos);
-struct
-{
-  template <typename T> auto
-  operator () (const T &a) const HB_AUTO_RETURN (-a)
-}
-HB_FUNCOBJ (hb_neg);
+  static constexpr bool passthru_left = true;
+  static constexpr bool passthru_right = true;
+  template <typename T> static void process (T &o, const T &a, const T &b) { o = a ^ b; }
+};
 
 
 /* Compiler-assisted vectorization. */
@@ -884,26 +779,26 @@ struct hb_vector_size_t
 
   void clear (unsigned char v = 0) { memset (this, v, sizeof (*this)); }
 
-  template <typename Op>
-  hb_vector_size_t process (const Op& op, const hb_vector_size_t &o) const
+  template <class Op>
+  hb_vector_size_t process (const hb_vector_size_t &o) const
   {
     hb_vector_size_t r;
 #if HB_VECTOR_SIZE
     if (HB_VECTOR_SIZE && 0 == (byte_size * 8) % HB_VECTOR_SIZE)
       for (unsigned int i = 0; i < ARRAY_LENGTH (u.vec); i++)
-	r.u.vec[i] = op (u.vec[i], o.u.vec[i]);
+	Op::process (r.u.vec[i], u.vec[i], o.u.vec[i]);
     else
 #endif
       for (unsigned int i = 0; i < ARRAY_LENGTH (u.v); i++)
-	r.u.v[i] = op (u.v[i], o.u.v[i]);
+	Op::process (r.u.v[i], u.v[i], o.u.v[i]);
     return r;
   }
   hb_vector_size_t operator | (const hb_vector_size_t &o) const
-  { return process (hb_bitwise_or, o); }
+  { return process<HbOpOr> (o); }
   hb_vector_size_t operator & (const hb_vector_size_t &o) const
-  { return process (hb_bitwise_and, o); }
+  { return process<HbOpAnd> (o); }
   hb_vector_size_t operator ^ (const hb_vector_size_t &o) const
-  { return process (hb_bitwise_xor, o); }
+  { return process<HbOpXor> (o); }
   hb_vector_size_t operator ~ () const
   {
     hb_vector_size_t r;

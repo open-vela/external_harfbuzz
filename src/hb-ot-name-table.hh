@@ -51,7 +51,6 @@ struct NameRecord
 {
   hb_language_t language (hb_face_t *face) const
   {
-#ifndef HB_NO_OT_NAME_LANGUAGE
     unsigned int p = platformID;
     unsigned int l = languageID;
 
@@ -61,12 +60,11 @@ struct NameRecord
     if (p == 1)
       return _hb_ot_name_language_for_mac_code (l);
 
-#ifndef HB_NO_OT_NAME_LANGUAGE_AAT
+#if !defined(HB_NO_NAME_TABLE_AAT)
     if (p == 0)
       return _hb_aat_language_get (face, l);
 #endif
 
-#endif
     return HB_LANGUAGE_INVALID;
   }
 
@@ -172,7 +170,7 @@ struct name
   { return min_size + count * nameRecordZ.item_size; }
 
   template <typename Iterator,
-	    hb_requires (hb_is_source_of (Iterator, const NameRecord &))>
+	    hb_requires (hb_is_iterator_of (Iterator, const NameRecord))>
   bool serialize (hb_serialize_context_t *c,
 		  Iterator it,
 		  const void *src_string_pool)
@@ -192,7 +190,7 @@ struct name
     const void *dst_string_pool = &(this + this->stringOffset);
 
     + it
-    | hb_apply ([=] (const NameRecord& _) { c->copy (_, src_string_pool, dst_string_pool); })
+    | hb_apply ([&] (const NameRecord& _) { c->copy (_, src_string_pool, dst_string_pool); })
     ;
 
     if (unlikely (c->ran_out_of_room)) return_trace (false);
