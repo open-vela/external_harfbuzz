@@ -36,17 +36,28 @@
 
 struct
 {
+  /* Note.  This is dangerous in that if it's passed an rvalue, it returns rvalue-reference. */
   template <typename T> auto
   operator () (T&& v) const HB_AUTO_RETURN ( hb_forward<T> (v) )
 }
 HB_FUNCOBJ (hb_identity);
-
 struct
 {
+  /* Like identity(), but only retains lvalue-references.  Rvalues are returned as rvalues. */
+  template <typename T> T&
+  operator () (T& v) const { return v; }
+
   template <typename T> hb_remove_reference<T>
   operator () (T&& v) const { return v; }
 }
-HB_FUNCOBJ (hb_rvalue);
+HB_FUNCOBJ (hb_lidentity);
+struct
+{
+  /* Like identity(), but always returns rvalue. */
+  template <typename T> hb_remove_reference<T>
+  operator () (T&& v) const { return v; }
+}
+HB_FUNCOBJ (hb_ridentity);
 
 struct
 {
@@ -206,11 +217,20 @@ struct hb_pair_t
   hb_pair_t (T1 a, T2 b) : first (a), second (b) {}
   hb_pair_t (const pair_t& o) : first (o.first), second (o.second) {}
 
+  template <typename Q1, typename Q2,
+	    hb_enable_if (hb_is_convertible (T1, Q1) &&
+			  hb_is_convertible (T2, T2))>
+  operator hb_pair_t<Q1, Q2> () { return hb_pair_t<Q1, Q2> (first, second); }
+
+  hb_pair_t<T1, T2> reverse () const
+  { return hb_pair_t<T1, T2> (second, first); }
+
   bool operator == (const pair_t& o) const { return first == o.first && second == o.second; }
 
   T1 first;
   T2 second;
 };
+#define hb_pair_t(T1,T2) hb_pair_t<T1, T2>
 template <typename T1, typename T2> static inline hb_pair_t<T1, T2>
 hb_pair (T1&& a, T2&& b) { return hb_pair_t<T1, T2> (a, b); }
 
