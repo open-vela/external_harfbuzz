@@ -60,7 +60,6 @@ hb_unicode_combining_class_nil (hb_unicode_funcs_t *ufuncs    HB_UNUSED,
   return HB_UNICODE_COMBINING_CLASS_NOT_REORDERED;
 }
 
-#ifndef HB_DISABLE_DEPRECATED
 static unsigned int
 hb_unicode_eastasian_width_nil (hb_unicode_funcs_t *ufuncs    HB_UNUSED,
 				hb_codepoint_t      unicode   HB_UNUSED,
@@ -68,7 +67,6 @@ hb_unicode_eastasian_width_nil (hb_unicode_funcs_t *ufuncs    HB_UNUSED,
 {
   return 1;
 }
-#endif
 
 static hb_unicode_general_category_t
 hb_unicode_general_category_nil (hb_unicode_funcs_t *ufuncs    HB_UNUSED,
@@ -115,7 +113,6 @@ hb_unicode_decompose_nil (hb_unicode_funcs_t *ufuncs    HB_UNUSED,
 }
 
 
-#ifndef HB_DISABLE_DEPRECATED
 static unsigned int
 hb_unicode_decompose_compatibility_nil (hb_unicode_funcs_t *ufuncs     HB_UNUSED,
 					hb_codepoint_t      u          HB_UNUSED,
@@ -124,7 +121,6 @@ hb_unicode_decompose_compatibility_nil (hb_unicode_funcs_t *ufuncs     HB_UNUSED
 {
   return 0;
 }
-#endif
 
 
 extern "C" hb_unicode_funcs_t *hb_glib_get_unicode_funcs ();
@@ -429,7 +425,6 @@ hb_unicode_decompose (hb_unicode_funcs_t *ufuncs,
   return ufuncs->decompose (ab, a, b);
 }
 
-#ifndef HB_DISABLE_DEPRECATED
 /**
  * hb_unicode_decompose_compatibility:
  * @ufuncs: Unicode functions.
@@ -450,7 +445,6 @@ hb_unicode_decompose_compatibility (hb_unicode_funcs_t *ufuncs,
 {
   return ufuncs->decompose_compatibility (u, decomposed);
 }
-#endif
 
 
 /* See hb-unicode.hh for details. */
