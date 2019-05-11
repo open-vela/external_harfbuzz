@@ -147,9 +147,8 @@ struct cs_interp_env_t : interp_env_t<ARG>
     return callStack.in_error () || SUPER::in_error ();
   }
 
-  bool pop_subr_num (const biased_subrs_t<SUBRS>& biasedSubrs, unsigned int &subr_num)
+  bool popSubrNum (const biased_subrs_t<SUBRS>& biasedSubrs, unsigned int &subr_num)
   {
-    subr_num = 0;
     int n = SUPER::argStack.pop_int ();
     n += biasedSubrs.get_bias ();
     if (unlikely ((n < 0) || ((unsigned int)n >= biasedSubrs.get_count ())))
@@ -159,11 +158,11 @@ struct cs_interp_env_t : interp_env_t<ARG>
     return true;
   }
 
-  void call_subr (const biased_subrs_t<SUBRS>& biasedSubrs, cs_type_t type)
+  void callSubr (const biased_subrs_t<SUBRS>& biasedSubrs, cs_type_t type)
   {
-    unsigned int subr_num = 0;
+    unsigned int subr_num;
 
-    if (unlikely (!pop_subr_num (biasedSubrs, subr_num)
+    if (unlikely (!popSubrNum (biasedSubrs, subr_num)
 		 || callStack.get_count () >= kMaxCallLimit))
     {
       SUPER::set_error ();
@@ -176,7 +175,7 @@ struct cs_interp_env_t : interp_env_t<ARG>
     SUPER::str_ref = context.str_ref;
   }
 
-  void return_from_subr ()
+  void returnFromSubr ()
   {
     if (unlikely (SUPER::str_ref.in_error ()))
       SUPER::set_error ();
@@ -247,7 +246,7 @@ struct path_procs_null_t
   static void flex1 (ENV &env, PARAM& param) {}
 };
 
-template <typename ARG, typename OPSET, typename ENV, typename PARAM, typename PATH=path_procs_null_t<ENV, PARAM>>
+template <typename ARG, typename OPSET, typename ENV, typename PARAM, typename PATH=path_procs_null_t<ENV, PARAM> >
 struct cs_opset_t : opset_t<ARG>
 {
   static void process_op (op_code_t op, ENV &env, PARAM& param)
@@ -255,7 +254,7 @@ struct cs_opset_t : opset_t<ARG>
     switch (op) {
 
       case OpCode_return:
-	env.return_from_subr ();
+	env.returnFromSubr ();
 	break;
       case OpCode_endchar:
 	OPSET::check_width (op, env, param);
@@ -268,11 +267,11 @@ struct cs_opset_t : opset_t<ARG>
 	break;
 
       case OpCode_callsubr:
-	env.call_subr (env.localSubrs, CSType_LocalSubr);
+	env.callSubr (env.localSubrs, CSType_LocalSubr);
 	break;
 
       case OpCode_callgsubr:
-	env.call_subr (env.globalSubrs, CSType_GlobalSubr);
+	env.callSubr (env.globalSubrs, CSType_GlobalSubr);
 	break;
 
       case OpCode_hstem:
