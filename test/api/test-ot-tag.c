@@ -281,8 +281,6 @@ test_ot_tag_language (void)
   g_assert_cmphex (HB_TAG_CHAR4 ("dflt"), ==, HB_OT_TAG_DEFAULT_LANGUAGE);
   test_language_two_way ("dflt", NULL);
 
-  test_language_two_way ("ALT", "alt");
-
   test_language_two_way ("ARA", "ar");
 
   test_language_two_way ("AZE", "az");
@@ -355,8 +353,7 @@ test_ot_tag_language (void)
   test_tag_from_language ("ZHS", "zh"); /* Chinese */
   test_tag_from_language ("ZHS", "zh-xx");
 
-  test_language_two_way ("ABC", "abc");
-  test_language_two_way ("ABCD", "x-hbotabcd");
+  test_language_two_way ("ABC", "x-hbotabc");
   test_tag_from_language ("ABC", "asdf-asdf-wer-x-hbotabc-zxc");
   test_tag_from_language ("ABC", "asdf-asdf-wer-x-hbotabc");
   test_tag_from_language ("ABCD", "asdf-asdf-wer-x-hbotabcd");

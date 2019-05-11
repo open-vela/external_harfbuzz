@@ -29,9 +29,8 @@
 #ifndef HB_HH
 #define HB_HH
 
-
 #ifndef HB_NO_PRAGMA_GCC_DIAGNOSTIC
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
 #pragma warning( disable: 4068 ) /* Unknown pragma */
 #endif
 #if defined(__GNUC__) || defined(__clang__)
@@ -66,7 +65,6 @@
 #pragma GCC diagnostic error   "-Wcast-align"
 #pragma GCC diagnostic error   "-Wcast-function-type"
 #pragma GCC diagnostic error   "-Wdelete-non-virtual-dtor"
-#pragma GCC diagnostic error   "-Wdouble-promotion"
 #pragma GCC diagnostic error   "-Wformat-security"
 #pragma GCC diagnostic error   "-Wimplicit-function-declaration"
 #pragma GCC diagnostic error   "-Winit-self"
@@ -96,7 +94,6 @@
 /* Warning.  To be investigated if happens. */
 #ifndef HB_NO_PRAGMA_GCC_DIAGNOSTIC_WARNING
 #pragma GCC diagnostic warning "-Wbuiltin-macro-redefined"
-#pragma GCC diagnostic warning "-Wdeprecated"
 #pragma GCC diagnostic warning "-Wdisabled-optimization"
 #pragma GCC diagnostic warning "-Wformat=2"
 #pragma GCC diagnostic warning "-Wignored-pragma-optimize"
@@ -124,15 +121,14 @@
 #pragma GCC diagnostic ignored "-Wpacked" // Erratic impl in clang
 #pragma GCC diagnostic ignored "-Wstrict-aliasing"
 #pragma GCC diagnostic ignored "-Wtype-limits"
-#pragma GCC diagnostic ignored "-Wc++11-compat" // only gcc raises it
 #endif
 
 #endif
 #endif
 
-
-#include "hb-config.hh"
-
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 /*
  * Following added based on what AC_USE_SYSTEM_EXTENSIONS adds to
@@ -171,7 +167,8 @@
 #include "hb-aat.h"
 #define HB_AAT_H_IN
 
-#include <limits.h>
+#include "hb-aat.h"
+
 #include <math.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -204,7 +201,7 @@ extern "C" void  hb_free_impl(void *ptr);
 #define realloc hb_realloc_impl
 #define free hb_free_impl
 
-#ifdef hb_memalign_impl
+#if defined(hb_memalign_impl)
 extern "C" int hb_memalign_impl(void **memptr, size_t alignment, size_t size);
 #define posix_memalign hb_memalign_impl
 #else
@@ -263,13 +260,6 @@ extern "C" int hb_memalign_impl(void **memptr, size_t alignment, size_t size);
 # endif
 #endif
 
-/* https://github.com/harfbuzz/harfbuzz/issues/1651 */
-#if defined(__clang__) && __clang_major__ < 10
-#define static_const static
-#else
-#define static_const static const
-#endif
-
 #if defined(__GNUC__) && (__GNUC__ >= 3)
 #define HB_FUNC __PRETTY_FUNCTION__
 #elif defined(_MSC_VER)
@@ -316,7 +306,7 @@ extern "C" int hb_memalign_impl(void **memptr, size_t alignment, size_t size);
 #  define HB_FALLTHROUGH /* FALLTHROUGH */
 #endif
 
-#ifdef __clang__
+#if defined(__clang__)
 /* Disable certain sanitizer errors. */
 /* https://github.com/harfbuzz/harfbuzz/issues/1247 */
 #define HB_NO_SANITIZE_SIGNED_INTEGER_OVERFLOW __attribute__((no_sanitize("signed-integer-overflow")))
@@ -347,25 +337,17 @@ extern "C" int hb_memalign_impl(void **memptr, size_t alignment, size_t size);
 #  if defined(_WIN32_WCE)
      /* Some things not defined on Windows CE. */
 #    define vsnprintf _vsnprintf
-#    ifndef HB_NO_GETENV
-#      define HB_NO_GETENV
-#    endif
+#    define getenv(Name) nullptr
 #    if _WIN32_WCE < 0x800
 #      define setlocale(Category, Locale) "C"
 static int errno = 0; /* Use something better? */
 #    endif
 #  elif defined(WINAPI_FAMILY) && (WINAPI_FAMILY==WINAPI_FAMILY_PC_APP || WINAPI_FAMILY==WINAPI_FAMILY_PHONE_APP)
-#    ifndef HB_NO_GETENV
-#      define HB_NO_GETENV
-#    endif
+#    define getenv(Name) nullptr
 #  endif
 #  if defined(_MSC_VER) && _MSC_VER < 1900
 #    define snprintf _snprintf
 #  endif
-#endif
-
-#ifdef HB_NO_GETENV
-#define getenv(Name) nullptr
 #endif
 
 #if defined(HAVE_ATEXIT) && !defined(HB_USE_ATEXIT)
@@ -446,12 +428,12 @@ static_assert ((sizeof (hb_var_int_t) == 4), "");
  *
  * https://bugs.chromium.org/p/chromium/issues/detail?id=860184
  */
-#ifndef HB_VECTOR_SIZE
+#if !defined(HB_VECTOR_SIZE)
 #  define HB_VECTOR_SIZE 0
 #endif
 
 /* The `vector_size' attribute was introduced in gcc 3.1. */
-#ifndef HB_VECTOR_SIZE
+#if !defined(HB_VECTOR_SIZE)
 #  if defined( __GNUC__ ) && ( __GNUC__ >= 4 )
 #    define HB_VECTOR_SIZE 128
 #  else
@@ -662,7 +644,7 @@ struct BEInt<Type, 4>
 #include "hb-atomic.hh"	// Requires: hb-meta
 #include "hb-null.hh"	// Requires: hb-meta
 #include "hb-algs.hh"	// Requires: hb-meta hb-null
-#include "hb-iter.hh"	// Requires: hb-algs hb-meta
+#include "hb-iter.hh"	// Requires: hb-meta
 #include "hb-debug.hh"	// Requires: hb-algs hb-atomic
 #include "hb-array.hh"	// Requires: hb-algs hb-iter hb-null
 #include "hb-vector.hh"	// Requires: hb-array hb-null
