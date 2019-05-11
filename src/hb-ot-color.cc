@@ -47,8 +47,6 @@
  * @include: hb-ot.h
  *
  * Functions for fetching color-font information from OpenType font faces.
- *
- * HarfBuzz supports COLR/CPAL, sbix, CBDT, and SVG color fonts.
  **/
 
 
@@ -59,48 +57,48 @@
 
 /**
  * hb_ot_color_has_palettes:
- * @face: #hb_face_t to work upon
+ * @face: a font face.
  *
- * Tests whether a face includes a `CPAL` color-palette table.
- *
- * Return value: true if data found, false otherwise
+ * Returns: whether CPAL table is available.
  *
  * Since: 2.1.0
  */
 hb_bool_t
 hb_ot_color_has_palettes (hb_face_t *face)
 {
+#ifdef HB_NO_COLOR
+  return false;
+#endif
   return face->table.CPAL->has_data ();
 }
 
 /**
  * hb_ot_color_palette_get_count:
- * @face: #hb_face_t to work upon
+ * @face: a font face.
  *
- * Fetches the number of color palettes in a face.
- *
- * Return value: the number of palettes found
+ * Returns: the number of color palettes in @face, or zero if @face has
+ * no colors.
  *
  * Since: 2.1.0
  */
 unsigned int
 hb_ot_color_palette_get_count (hb_face_t *face)
 {
+#ifdef HB_NO_COLOR
+  return 0;
+#endif
   return face->table.CPAL->get_palette_count ();
 }
 
 /**
  * hb_ot_color_palette_get_name_id:
- * @face: #hb_face_t to work upon
- * @palette_index: The index of the color palette 
+ * @face:    a font face.
+ * @palette_index: the index of the color palette whose name is being requested.
  *
- * Fetches the `name` table Name ID that provides display names for
- * a CPAL color palette. 
+ * Retrieves the name id of a color palette. For example, a color font can
+ * have themed palettes like "Spring", "Summer", "Fall", and "Winter".
  *
- * Palette display names can be generic (e.g., "Default") or provide
- * specific, themed names (e.g., "Spring", "Summer", "Fall", and "Winter").
- *
- * Return value: the Named ID found for the palette. 
+ * Returns: an identifier within @face's `name` table.
  * If the requested palette has no name the result is #HB_OT_NAME_ID_INVALID.
  *
  * Since: 2.1.0
@@ -109,21 +107,18 @@ hb_ot_name_id_t
 hb_ot_color_palette_get_name_id (hb_face_t *face,
 				 unsigned int palette_index)
 {
+#ifdef HB_NO_COLOR
+  return HB_OT_NAME_ID_INVALID;
+#endif
   return face->table.CPAL->get_palette_name_id (palette_index);
 }
 
 /**
  * hb_ot_color_palette_color_get_name_id:
- * @face: #hb_face_t to work upon
- * @color_index: The index of the color
+ * @face:        a font face.
+ * @color_index: palette entry index.
  *
- * Fetches the `name` table Name ID that provides display names for
- * the specificed color in a face's `CPAL` color palette. 
- *
- * Display names can be generic (e.g., "Background") or specific
- * (e.g., "Eye color").
- *
- * Return value: the Name ID found for the color.
+ * Returns: Name ID associated with a palette entry, e.g. eye color
  *
  * Since: 2.1.0
  */
@@ -131,17 +126,18 @@ hb_ot_name_id_t
 hb_ot_color_palette_color_get_name_id (hb_face_t *face,
 				       unsigned int color_index)
 {
+#ifdef HB_NO_COLOR
+  return HB_OT_NAME_ID_INVALID;
+#endif
   return face->table.CPAL->get_color_name_id (color_index);
 }
 
 /**
  * hb_ot_color_palette_get_flags:
- * @face: #hb_face_t to work upon
- * @palette_index: The index of the color palette
+ * @face:          a font face
+ * @palette_index: the index of the color palette whose flags are being requested
  *
- * Fetches the flags defined for a color palette.
- *
- * Return value: the #hb_ot_color_palette_flags_t of the requested color palette
+ * Returns: the flags for the requested color palette.
  *
  * Since: 2.1.0
  */
@@ -149,27 +145,33 @@ hb_ot_color_palette_flags_t
 hb_ot_color_palette_get_flags (hb_face_t *face,
 			       unsigned int palette_index)
 {
+#ifdef HB_NO_COLOR
+  return HB_OT_COLOR_PALETTE_FLAG_DEFAULT;
+#endif
   return face->table.CPAL->get_palette_flags (palette_index);
 }
 
 /**
  * hb_ot_color_palette_get_colors:
- * @face: #hb_face_t to work upon
- * @palette_index: the index of the color palette to query
- * @start_offset: offset of the first color to retrieve
- * @color_count: (inout) (optional): Input = the maximum number of colors to return;
- *               Output = the actual number of colors returned (may be zero)
- * @colors: (array length=color_count) (out) (optional): The array of #hb_color_t records found
+ * @face:         a font face.
+ * @palette_index:the index of the color palette whose colors
+ *                are being requested.
+ * @start_offset: the index of the first color being requested.
+ * @color_count:  (inout) (optional): on input, how many colors
+ *                can be maximally stored into the @colors array;
+ *                on output, how many colors were actually stored.
+ * @colors: (array length=color_count) (out) (optional):
+ *                an array of #hb_color_t records. After calling
+ *                this function, @colors will be filled with
+ *                the palette colors. If @colors is NULL, the function
+ *                will just return the number of total colors
+ *                without storing any actual colors; this can be used
+ *                for allocating a buffer of suitable size before calling
+ *                hb_ot_color_palette_get_colors() a second time.
  *
- * Fetches a list of the colors in a color palette.
+ * Retrieves the colors in a color palette.
  *
- * After calling this function, @colors will be filled with the palette
- * colors. If @colors is NULL, the function will just return the number
- * of total colors without storing any actual colors; this can be used
- * for allocating a buffer of suitable size before calling
- * hb_ot_color_palette_get_colors() a second time.
- *
- * Return value: the total number of colors in the palette
+ * Returns: the total number of colors in the palette.
  *
  * Since: 2.1.0
  */
@@ -180,6 +182,11 @@ hb_ot_color_palette_get_colors (hb_face_t     *face,
 				unsigned int  *colors_count  /* IN/OUT.  May be NULL. */,
 				hb_color_t    *colors        /* OUT.     May be NULL. */)
 {
+#ifdef HB_NO_COLOR
+  if (colors_count)
+    *colors_count = 0;
+  return 0;
+#endif
   return face->table.CPAL->get_palette_colors (palette_index, start_offset, colors_count, colors);
 }
 
@@ -190,33 +197,31 @@ hb_ot_color_palette_get_colors (hb_face_t     *face,
 
 /**
  * hb_ot_color_has_layers:
- * @face: #hb_face_t to work upon
+ * @face: a font face.
  *
- * Tests whether a face includes any COLR color layers.
- *
- * Return value: true if data found, false otherwise
+ * Returns: whether COLR table is available.
  *
  * Since: 2.1.0
  */
 hb_bool_t
 hb_ot_color_has_layers (hb_face_t *face)
 {
+#ifdef HB_NO_COLOR
+  return false;
+#endif
   return face->table.COLR->has_data ();
 }
 
 /**
  * hb_ot_color_glyph_get_layers:
- * @face: #hb_face_t to work upon
- * @glyph: The glyph index to query
- * @start_offset: offset of the first layer to retrieve
- * @count: (inout) (optional): Input = the maximum number of layers to return;
- *         Output = the actual number of layers returned (may be zero)
- * @layers: (array length=count) (out) (optional): The array of layers found
+ * @face:         a font face.
+ * @glyph:        a layered color glyph id.
+ * @start_offset: starting offset of layers.
+ * @layer_count:  (inout) (optional): gets number of layers available to be written on buffer
+ * 				and returns number of written layers.
+ * @layers: (array length=layer_count) (out) (optional): layers buffer to buffer.
  *
- * Fetches a list of all color layers for the specified glyph index in the specified
- * face. The list returned will begin at the offset provided.
- *
- * Return value: Total number of layers available for the glyph index queried
+ * Returns: Total number of layers a layered color glyph have.
  *
  * Since: 2.1.0
  */
@@ -224,10 +229,15 @@ unsigned int
 hb_ot_color_glyph_get_layers (hb_face_t           *face,
 			      hb_codepoint_t       glyph,
 			      unsigned int         start_offset,
-			      unsigned int        *count, /* IN/OUT.  May be NULL. */
+			      unsigned int        *layer_count, /* IN/OUT.  May be NULL. */
 			      hb_ot_color_layer_t *layers /* OUT.     May be NULL. */)
 {
-  return face->table.COLR->get_glyph_layers (glyph, start_offset, count, layers);
+#ifdef HB_NO_COLOR
+  if (layer_count)
+    *layer_count = 0;
+  return 0;
+#endif
+  return face->table.COLR->get_glyph_layers (glyph, start_offset, layer_count, layers);
 }
 
 
@@ -237,34 +247,40 @@ hb_ot_color_glyph_get_layers (hb_face_t           *face,
 
 /**
  * hb_ot_color_has_svg:
- * @face: #hb_face_t to work upon.
+ * @face: a font face.
  *
- * Tests whether a face includes any SVG glyph images.
+ * Check whether @face has SVG glyph images.
  *
- * Return value: true if data found, false otherwise.
+ * Returns true if available, false otherwise.
  *
  * Since: 2.1.0
  */
 hb_bool_t
 hb_ot_color_has_svg (hb_face_t *face)
 {
+#ifdef HB_NO_COLOR
+  return false;
+#endif
   return face->table.SVG->has_data ();
 }
 
 /**
  * hb_ot_color_glyph_reference_svg:
- * @face: #hb_face_t to work upon
- * @glyph: a svg glyph index
+ * @face:  a font face.
+ * @glyph: a svg glyph index.
  *
- * Fetches the SVG document for a glyph. The blob may be either plain text or gzip-encoded.
+ * Get SVG document for a glyph. The blob may be either plain text or gzip-encoded.
  *
- * Return value: (transfer full): An #hb_blob_t containing the SVG document of the glyph, if available
+ * Returns: (transfer full): respective svg blob of the glyph, if available.
  *
  * Since: 2.1.0
  */
 hb_blob_t *
 hb_ot_color_glyph_reference_svg (hb_face_t *face, hb_codepoint_t glyph)
 {
+#ifdef HB_NO_COLOR
+  return hb_blob_get_empty ();
+#endif
   return face->table.SVG->reference_blob_for_glyph (glyph);
 }
 
@@ -275,36 +291,43 @@ hb_ot_color_glyph_reference_svg (hb_face_t *face, hb_codepoint_t glyph)
 
 /**
  * hb_ot_color_has_png:
- * @face: #hb_face_t to work upon
+ * @face: a font face.
  *
- * Tests whether a face has PNG glyph images (either in CBDT or sbix tables).
+ * Check whether @face has PNG glyph images (either CBDT or sbix tables).
  *
- * Return value: true if data found, false otherwise
+ * Returns true if available, false otherwise.
  *
  * Since: 2.1.0
  */
 hb_bool_t
 hb_ot_color_has_png (hb_face_t *face)
 {
+#ifdef HB_NO_COLOR
+  return false;
+#endif
   return face->table.CBDT->has_data () || face->table.sbix->has_data ();
 }
 
 /**
  * hb_ot_color_glyph_reference_png:
- * @font: #hb_font_t to work upon
+ * @font:  a font object, not face. upem should be set on
+ * 	   that font object if one wants to get optimal png blob, otherwise
+ * 	   return the biggest one
  * @glyph: a glyph index.
  *
- * Fetches the PNG image for a glyph. This function takes a font object, not a face object,
- * as input. To get an optimally sized PNG blob, the UPEM value must be set on the @font
- * object. If UPEM is unset, the blob returned will be the largest PNG available.
+ * Get PNG image for a glyph.
  *
- * Return value: (transfer full): An #hb_blob_t containing the PNG image for the glyph, if available
+ * Returns: (transfer full): respective PNG blob of the glyph, if available.
  *
  * Since: 2.1.0
  */
 hb_blob_t *
 hb_ot_color_glyph_reference_png (hb_font_t *font, hb_codepoint_t  glyph)
 {
+#ifdef HB_NO_COLOR
+  return hb_blob_get_empty ();
+#endif
+
   hb_blob_t *blob = hb_blob_get_empty ();
 
   if (font->face->table.sbix->has_data ())
