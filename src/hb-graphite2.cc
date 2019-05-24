@@ -41,11 +41,7 @@
  * @short_description: Graphite2 integration
  * @include: hb-graphite2.h
  *
- * Functions for using HarfBuzz with fonts that include Graphite2 features.
- * 
- * For Graphite2 features to work, you must be sure that HarfBuzz was compiled
- * with the `graphite2` shaping engine enabled. Currently, the default is to
- * not enable `graphite2` shaping.
+ * Functions for using HarfBuzz with the Graphite2 fonts.
  **/
 
 
@@ -178,15 +174,7 @@ _hb_graphite2_shaper_face_data_destroy (hb_graphite2_face_data_t *data)
   free (data);
 }
 
-/**
- * hb_graphite2_face_get_gr_face:
- * @face: @hb_face_t to query
- *
- * Fetches the Graphite2 gr_face corresponding to the specified
- * #hb_face_t face object.
- *
- * Return value: the gr_face found
- *
+/*
  * Since: 0.9.10
  */
 gr_face *
@@ -214,6 +202,7 @@ _hb_graphite2_shaper_font_data_destroy (hb_graphite2_font_data_t *data HB_UNUSED
 {
 }
 
+#ifndef HB_DISABLE_DEPRECATED
 /**
  * hb_graphite2_font_get_gr_font:
  *
@@ -225,6 +214,7 @@ hb_graphite2_font_get_gr_font (hb_font_t *font HB_UNUSED)
 {
   return nullptr;
 }
+#endif
 
 
 /*
@@ -320,12 +310,12 @@ _hb_graphite2_shape (hb_shape_plan_t    *shape_plan HB_UNUSED,
 
 #define ALLOCATE_ARRAY(Type, name, len) \
   Type *name = (Type *) scratch; \
-  { \
+  do { \
     unsigned int _consumed = DIV_CEIL ((len) * sizeof (Type), sizeof (*scratch)); \
     assert (_consumed <= scratch_size); \
     scratch += _consumed; \
     scratch_size -= _consumed; \
-  }
+  } while (0)
 
   ALLOCATE_ARRAY (hb_graphite2_cluster_t, clusters, buffer->len);
   ALLOCATE_ARRAY (hb_codepoint_t, gids, glyph_count);
