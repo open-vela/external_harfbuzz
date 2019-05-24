@@ -75,7 +75,6 @@ hb_ot_var_get_axis_count (hb_face_t *face)
   return face->table.fvar->get_axis_count ();
 }
 
-#ifndef HB_DISABLE_DEPRECATED
 /**
  * hb_ot_var_get_axes:
  *
@@ -105,7 +104,6 @@ hb_ot_var_find_axis (hb_face_t        *face,
 {
   return face->table.fvar->find_axis_deprecated (axis_tag, axis_index, axis_info);
 }
-#endif
 
 /**
  * hb_ot_var_get_axis_infos:

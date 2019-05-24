@@ -47,9 +47,9 @@ struct KernSubTableFormat3
   int get_kerning (hb_codepoint_t left, hb_codepoint_t right) const
   {
     hb_array_t<const FWORD> kernValue = kernValueZ.as_array (kernValueCount);
-    hb_array_t<const HBUINT8> leftClass = StructAfter<const UnsizedArrayOf<HBUINT8>> (kernValue).as_array (glyphCount);
-    hb_array_t<const HBUINT8> rightClass = StructAfter<const UnsizedArrayOf<HBUINT8>> (leftClass).as_array (glyphCount);
-    hb_array_t<const HBUINT8> kernIndex = StructAfter<const UnsizedArrayOf<HBUINT8>> (rightClass).as_array (leftClassCount * rightClassCount);
+    hb_array_t<const HBUINT8> leftClass = StructAfter<const UnsizedArrayOf<HBUINT8> > (kernValue).as_array (glyphCount);
+    hb_array_t<const HBUINT8> rightClass = StructAfter<const UnsizedArrayOf<HBUINT8> > (leftClass).as_array (glyphCount);
+    hb_array_t<const HBUINT8> kernIndex = StructAfter<const UnsizedArrayOf<HBUINT8> > (rightClass).as_array (leftClassCount * rightClassCount);
 
     unsigned int leftC = leftClass[left];
     unsigned int rightC = rightClass[right];
@@ -121,20 +121,16 @@ struct KernSubTable
     }
   }
 
-  template <typename context_t, typename ...Ts>
-  typename context_t::return_t dispatch (context_t *c, Ts&&... ds) const
+  template <typename context_t>
+  typename context_t::return_t dispatch (context_t *c) const
   {
     unsigned int subtable_type = get_type ();
     TRACE_DISPATCH (this, subtable_type);
     switch (subtable_type) {
     case 0:	return_trace (c->dispatch (u.format0));
-#ifndef HB_NO_SHAPE_AAT
-    case 1:	return_trace (u.header.apple ? c->dispatch (u.format1, hb_forward<Ts> (ds)...) : c->default_return_value ());
-#endif
+    case 1:	return_trace (u.header.apple ? c->dispatch (u.format1) : c->default_return_value ());
     case 2:	return_trace (c->dispatch (u.format2));
-#ifndef HB_NO_SHAPE_AAT
-    case 3:	return_trace (u.header.apple ? c->dispatch (u.format3, hb_forward<Ts> (ds)...) : c->default_return_value ());
-#endif
+    case 3:	return_trace (u.header.apple ? c->dispatch (u.format3) : c->default_return_value ());
     default:	return_trace (c->default_return_value ());
     }
   }
@@ -282,9 +278,7 @@ struct kern
   {
     switch (get_type ()) {
     case 0: return u.ot.has_state_machine ();
-#ifndef HB_NO_SHAPE_AAT
     case 1: return u.aat.has_state_machine ();
-#endif
     default:return false;
     }
   }
@@ -293,9 +287,7 @@ struct kern
   {
     switch (get_type ()) {
     case 0: return u.ot.has_cross_stream ();
-#ifndef HB_NO_SHAPE_AAT
     case 1: return u.aat.has_cross_stream ();
-#endif
     default:return false;
     }
   }
@@ -304,9 +296,7 @@ struct kern
   {
     switch (get_type ()) {
     case 0: return u.ot.get_h_kerning (left, right);
-#ifndef HB_NO_SHAPE_AAT
     case 1: return u.aat.get_h_kerning (left, right);
-#endif
     default:return 0;
     }
   }
@@ -314,16 +304,14 @@ struct kern
   bool apply (AAT::hb_aat_apply_context_t *c) const
   { return dispatch (c); }
 
-  template <typename context_t, typename ...Ts>
-  typename context_t::return_t dispatch (context_t *c, Ts&&... ds) const
+  template <typename context_t>
+  typename context_t::return_t dispatch (context_t *c) const
   {
     unsigned int subtable_type = get_type ();
     TRACE_DISPATCH (this, subtable_type);
     switch (subtable_type) {
-    case 0:	return_trace (c->dispatch (u.ot, hb_forward<Ts> (ds)...));
-#ifndef HB_NO_SHAPE_AAT
-    case 1:	return_trace (c->dispatch (u.aat, hb_forward<Ts> (ds)...));
-#endif
+    case 0:	return_trace (c->dispatch (u.ot));
+    case 1:	return_trace (c->dispatch (u.aat));
     default:	return_trace (c->default_return_value ());
     }
   }
@@ -340,9 +328,7 @@ struct kern
   HBUINT32		version32;
   HBUINT16		major;
   KernOT		ot;
-#ifndef HB_NO_SHAPE_AAT
   KernAAT		aat;
-#endif
   } u;
   public:
   DEFINE_SIZE_UNION (4, version32);

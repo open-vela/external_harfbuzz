@@ -336,7 +336,6 @@ hb_font_get_glyph_v_origin_default (hb_font_t *font,
   return ret;
 }
 
-#ifndef HB_DISABLE_DEPRECATED
 static hb_position_t
 hb_font_get_glyph_h_kerning_nil (hb_font_t *font HB_UNUSED,
 				 void *font_data HB_UNUSED,
@@ -374,7 +373,6 @@ hb_font_get_glyph_v_kerning_default (hb_font_t *font,
 {
   return font->parent_scale_y_distance (font->parent->get_glyph_v_kerning (top_glyph, bottom_glyph));
 }
-#endif
 
 static hb_bool_t
 hb_font_get_glyph_extents_nil (hb_font_t *font HB_UNUSED,
@@ -927,7 +925,6 @@ hb_font_get_glyph_v_origin (hb_font_t *font,
   return font->get_glyph_v_origin (glyph, x, y);
 }
 
-#ifndef HB_DISABLE_DEPRECATED
 /**
  * hb_font_get_glyph_h_kerning:
  * @font: a font.
@@ -967,7 +964,6 @@ hb_font_get_glyph_v_kerning (hb_font_t *font,
 {
   return font->get_glyph_v_kerning (top_glyph, bottom_glyph);
 }
-#endif
 
 /**
  * hb_font_get_glyph_extents:
@@ -1177,7 +1173,6 @@ hb_font_subtract_glyph_origin_for_direction (hb_font_t *font,
   return font->subtract_glyph_origin_for_direction (glyph, direction, x, y);
 }
 
-#ifndef HB_DISABLE_DEPRECATED
 /**
  * hb_font_get_glyph_kerning_for_direction:
  * @font: a font.
@@ -1200,7 +1195,6 @@ hb_font_get_glyph_kerning_for_direction (hb_font_t *font,
 {
   return font->get_glyph_kerning_for_direction (first_glyph, second_glyph, direction, x, y);
 }
-#endif
 
 /**
  * hb_font_get_glyph_extents_for_origin:
@@ -1353,7 +1347,7 @@ hb_font_create (hb_face_t *face)
 {
   hb_font_t *font = _hb_font_create (face);
 
-#ifndef HB_NO_OT_FONT
+#if !defined(HB_NO_OT_FONT)
   /* Install our in-house, very lightweight, funcs. */
   hb_ot_font_set_funcs (font);
 #endif
@@ -1922,7 +1916,6 @@ hb_font_get_var_coords_normalized (hb_font_t *font,
 }
 
 
-#ifndef HB_DISABLE_DEPRECATED
 /*
  * Deprecated get_glyph_func():
  */
@@ -2045,4 +2038,3 @@ hb_font_funcs_set_glyph_func (hb_font_funcs_t *ffuncs,
 					  trampoline,
 					  trampoline_destroy);
 }
-#endif
