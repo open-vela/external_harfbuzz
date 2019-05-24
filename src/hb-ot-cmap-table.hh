@@ -93,7 +93,7 @@ struct CmapSubtableFormat4
     this->length = get_sub_table_size (segments);
 
     this->segCountX2 = segments.length * 2;
-    this->entrySelector = hb_max (1u, hb_bit_storage (segments.length)) - 1;
+    this->entrySelector = MAX (1u, hb_bit_storage (segments.length)) - 1;
     this->searchRange = 2 * (1u << this->entrySelector);
     this->rangeShift = segments.length * 2 > this->searchRange
 		       ? 2 * segments.length - this->searchRange
@@ -142,7 +142,7 @@ struct CmapSubtableFormat4
 	for (unsigned int j = 0; j < num_codepoints; j++)
 	{
 	  hb_codepoint_t cp = segments[i].start_code + j;
-	  hb_codepoint_t new_gid = 0;
+	  hb_codepoint_t new_gid;
 	  if (unlikely (!plan->new_gid_for_codepoint (cp, &new_gid)))
 	    return_trace (false);
 	  glyph_id_array[j] = new_gid;
@@ -183,7 +183,7 @@ struct CmapSubtableFormat4
 
     hb_codepoint_t cp = HB_SET_VALUE_INVALID;
     while (plan->unicodes->next (&cp)) {
-      hb_codepoint_t new_gid = 0;
+      hb_codepoint_t new_gid;
       if (unlikely (!plan->new_gid_for_codepoint (cp, &new_gid)))
       {
 	DEBUG_MSG(SUBSET, nullptr, "Unable to find new gid for %04x", cp);
@@ -348,7 +348,7 @@ struct CmapSubtableFormat4
       /* Some broken fonts have too long of a "length" value.
        * If that is the case, just change the value to truncate
        * the subtable at the end of the blob. */
-      uint16_t new_length = (uint16_t) hb_min ((uintptr_t) 65535,
+      uint16_t new_length = (uint16_t) MIN ((uintptr_t) 65535,
 					    (uintptr_t) (c->end -
 							 (char *) this));
       if (!c->try_set (&length, new_length))
@@ -478,7 +478,7 @@ struct CmapSubtableLongSegmented
   {
     for (unsigned int i = 0; i < this->groups.len; i++) {
       out->add_range (this->groups[i].startCharCode,
-		      hb_min ((hb_codepoint_t) this->groups[i].endCharCode,
+		      MIN ((hb_codepoint_t) this->groups[i].endCharCode,
 			   (hb_codepoint_t) HB_UNICODE_MAX));
     }
   }
@@ -518,31 +518,31 @@ struct CmapSubtableFormat12 : CmapSubtableLongSegmented<CmapSubtableFormat12>
 
 
   bool serialize (hb_serialize_context_t *c,
-		  const hb_sorted_vector_t<CmapSubtableLongGroup> &groups_data)
+		  const hb_sorted_vector_t<CmapSubtableLongGroup> &groups)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (*this))) return_trace (false);
 
     this->format = 12;
     this->reserved = 0;
-    this->length = get_sub_table_size (groups_data);
+    this->length = get_sub_table_size (groups);
 
-    return_trace (CmapSubtableLongSegmented<CmapSubtableFormat12>::serialize (c, groups_data));
+    return_trace (CmapSubtableLongSegmented<CmapSubtableFormat12>::serialize (c, groups));
   }
 
-  static size_t get_sub_table_size (const hb_sorted_vector_t<CmapSubtableLongGroup> &groups_data)
+  static size_t get_sub_table_size (const hb_sorted_vector_t<CmapSubtableLongGroup> &groups)
   {
-    return 16 + 12 * groups_data.length;
+    return 16 + 12 * groups.length;
   }
 
   static bool create_sub_table_plan (const hb_subset_plan_t *plan,
-				     hb_sorted_vector_t<CmapSubtableLongGroup> *groups_out)
+				     hb_sorted_vector_t<CmapSubtableLongGroup> *groups)
   {
     CmapSubtableLongGroup *group = nullptr;
 
     hb_codepoint_t cp = HB_SET_VALUE_INVALID;
     while (plan->unicodes->next (&cp)) {
-      hb_codepoint_t new_gid = 0;
+      hb_codepoint_t new_gid;
       if (unlikely (!plan->new_gid_for_codepoint (cp, &new_gid)))
       {
 	DEBUG_MSG(SUBSET, nullptr, "Unable to find new gid for %04x", cp);
@@ -551,7 +551,7 @@ struct CmapSubtableFormat12 : CmapSubtableLongSegmented<CmapSubtableFormat12>
 
       if (!group || !_is_gid_consecutive (group, cp, new_gid))
       {
-	group = groups_out->push ();
+	group = groups->push ();
 	group->startCharCode = cp;
 	group->endCharCode = cp;
 	group->glyphID = new_gid;
@@ -560,8 +560,8 @@ struct CmapSubtableFormat12 : CmapSubtableLongSegmented<CmapSubtableFormat12>
     }
 
     DEBUG_MSG(SUBSET, nullptr, "cmap");
-    for (unsigned int i = 0; i < groups_out->length; i++) {
-      CmapSubtableLongGroup& group = (*groups_out)[i];
+    for (unsigned int i = 0; i < groups->length; i++) {
+      CmapSubtableLongGroup& group = (*groups)[i];
       DEBUG_MSG(SUBSET, nullptr, "  %d: U+%04X-U+%04X, gid %d-%d", i, (uint32_t) group.startCharCode, (uint32_t) group.endCharCode, (uint32_t) group.glyphID, (uint32_t) group.glyphID + ((uint32_t) group.endCharCode - (uint32_t) group.startCharCode));
     }
 
@@ -623,7 +623,7 @@ struct DefaultUVS : SortedArrayOf<UnicodeValueRange, HBUINT32>
     for (unsigned int i = 0; i < count; i++)
     {
       hb_codepoint_t first = arrayZ[i].startUnicodeValue;
-      hb_codepoint_t last = hb_min ((hb_codepoint_t) (first + arrayZ[i].additionalCount),
+      hb_codepoint_t last = MIN ((hb_codepoint_t) (first + arrayZ[i].additionalCount),
 				 (hb_codepoint_t) HB_UNICODE_MAX);
       out->add_range (first, last);
     }
@@ -904,7 +904,7 @@ struct cmap
     // Write out format 4 sub table
     {
       CmapSubtable &subtable = format4_plat0_rec.subtable.serialize (&c, table);
-      format4_plat3_rec.subtable = (unsigned int) format4_plat0_rec.subtable;
+      format4_plat3_rec.subtable = format4_plat0_rec.subtable;
       subtable.u.format = 4;
 
       CmapSubtableFormat4 &format4 = subtable.u.format4;

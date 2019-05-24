@@ -21,38 +21,20 @@
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
- * Google Author(s): Garret Rieger, Roderick Sheeter
+ * Google Author(s): Garret Rieger
  */
 
-#ifndef HB_SUBSET_INPUT_HH
-#define HB_SUBSET_INPUT_HH
-
+#ifndef HB_SUBSET_GLYF_HH
+#define HB_SUBSET_GLYF_HH
 
 #include "hb.hh"
 
-#include "hb-subset.h"
+#include "hb-subset.hh"
 
-#include "hb-font.hh"
+HB_INTERNAL bool
+hb_subset_glyf_and_loca (hb_subset_plan_t *plan,
+			 bool             *use_short_loca, /* OUT */
+			 hb_blob_t       **glyf_prime      /* OUT */,
+			 hb_blob_t       **loca_prime      /* OUT */);
 
-struct hb_subset_input_t
-{
-  hb_object_header_t header;
-
-  hb_set_t *unicodes;
-  hb_set_t *glyphs;
-
-  bool drop_hints : 1;
-  bool drop_layout : 1;
-  bool desubroutinize : 1;
-  bool retain_gids : 1;
-  /* TODO
-   *
-   * features
-   * lookups
-   * nameIDs
-   * ...
-   */
-};
-
-
-#endif /* HB_SUBSET_INPUT_HH */
+#endif /* HB_SUBSET_GLYF_HH */
