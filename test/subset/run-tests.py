@@ -32,11 +32,11 @@ def which(program):
 
 	return None
 
-fonttools = which ("fonttools")
+ttx = which ("ttx")
 ots_sanitize = which ("ots-sanitize")
 
-if not fonttools:
-	print("fonttools is not present, skipping test.")
+if not ttx:
+	print("TTX is not present, skipping test.")
 	sys.exit (77)
 
 def cmd(command):
@@ -66,8 +66,7 @@ def run_test(test, should_check_ots):
 	cli_args = [hb_subset,
 		    "--font-file=" + test.font_path,
 		    "--output-file=" + out_file,
-		    "--unicodes=%s" % test.unicodes (),
-		    "--drop-tables+=DSIG,GPOS,GSUB,GDEF,gvar,avar,MVAR,HVAR"]
+		    "--unicodes=%s" % test.unicodes ()]
 	cli_args.extend (test.get_profile_flags ())
 	print (' '.join (cli_args))
 	_, return_code = cmd (cli_args)
@@ -102,8 +101,8 @@ def run_test(test, should_check_ots):
 	return 0
 
 def run_ttx (file):
-	print ("fonttools ttx %s" % file)
-	return cmd([fonttools, "ttx", "-q", "-o-", file])
+	print ("ttx %s" % file)
+	return cmd([ttx, "-q", "-o-", file])
 
 def strip_check_sum (ttx_string):
 	return re.sub ('checkSumAdjustment value=["]0x([0-9a-fA-F])+["]',
