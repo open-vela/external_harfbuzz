@@ -389,7 +389,6 @@ hb_set_symmetric_difference (hb_set_t       *set,
   set->symmetric_difference (other);
 }
 
-#ifndef HB_DISABLE_DEPRECATED
 /**
  * hb_set_invert:
  * @set: a set.
@@ -404,7 +403,6 @@ void
 hb_set_invert (hb_set_t *set HB_UNUSED)
 {
 }
-#endif
 
 /**
  * hb_set_get_population:
