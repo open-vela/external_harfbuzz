@@ -28,7 +28,6 @@
 #define OPTIONS_HH
 
 #include "hb.hh"
-#include "hb-subset.h"
 
 #include <stdlib.h>
 #include <stddef.h>
@@ -674,18 +673,20 @@ struct subset_options_t : option_group_t
 {
   subset_options_t (option_parser_t *parser)
   {
-    input = hb_subset_input_create_or_fail ();
-    add_options (parser);
-  }
+    keep_layout = false;
+    drop_hints = false;
+    retain_gids = false;
+    desubroutinize = false;
 
-  virtual ~subset_options_t ()
-  {
-    hb_subset_input_destroy (input);
+    add_options (parser);
   }
 
   void add_options (option_parser_t *parser);
 
-  hb_subset_input_t *input;
+  hb_bool_t keep_layout;
+  hb_bool_t drop_hints;
+  hb_bool_t retain_gids;
+  hb_bool_t desubroutinize;
 };
 
 /* fallback implementation for scalbn()/scalbnf() for pre-2013 MSVC */
