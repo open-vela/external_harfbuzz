@@ -27,8 +27,6 @@
 #include "hb-ot-cff1-table.hh"
 #include "hb-cff1-interp-cs.hh"
 
-#ifndef HB_NO_CFF
-
 using namespace CFF;
 
 /* SID to code */
@@ -167,8 +165,8 @@ struct bounds_t
 {
   void init ()
   {
-    min.set_int (INT_MAX, INT_MAX);
-    max.set_int (INT_MIN, INT_MIN);
+    min.set_int (0x7FFFFFFF, 0x7FFFFFFF);
+    max.set_int (-0x80000000, -0x80000000);
   }
 
   void update (const point_t &pt)
@@ -307,11 +305,6 @@ bool _get_bounds (const OT::cff1::accelerator_t *cff, hb_codepoint_t glyph, boun
 
 bool OT::cff1::accelerator_t::get_extents (hb_codepoint_t glyph, hb_glyph_extents_t *extents) const
 {
-#ifdef HB_NO_OT_FONT_CFF
-  /* XXX Remove check when this code moves to .hh file. */
-  return true;
-#endif
-
   bounds_t  bounds;
 
   if (!_get_bounds (this, glyph, bounds))
@@ -390,5 +383,3 @@ bool OT::cff1::accelerator_t::get_seac_components (hb_codepoint_t glyph, hb_code
   }
   return false;
 }
-
-#endif

@@ -55,13 +55,13 @@ coretext_font_size_from_ptem (float ptem)
    * https://developer.apple.com/library/content/documentation/GraphicsAnimation/Conceptual/HighResolutionOSX/Explained/Explained.html
    */
   ptem *= 96.f / 72.f;
-  return (CGFloat) (ptem <= 0.f ? HB_CORETEXT_DEFAULT_FONT_SIZE : ptem);
+  return ptem <= 0.f ? HB_CORETEXT_DEFAULT_FONT_SIZE : ptem;
 }
 static float
 coretext_font_size_to_ptem (CGFloat size)
 {
-  size *= 72. / 96.;
-  return size <= 0 ? 0 : size;
+  size *= 72.f / 96.f;
+  return size <= 0.f ? 0 : size;
 }
 
 static void
@@ -293,13 +293,32 @@ _hb_coretext_shaper_face_data_destroy (hb_coretext_face_data_t *data)
   CFRelease ((CGFontRef) data);
 }
 
+/**
+ * hb_coretext_face_create:
+ * @cg_font: The CGFontRef to work upon
+ *
+ * Creates an #hb_face_t face object from the specified
+ * CGFontRef.
+ *
+ * Return value: the new #hb_face_t face object
+ *
+ * Since: 0.9.10
+ */
 hb_face_t *
 hb_coretext_face_create (CGFontRef cg_font)
 {
   return hb_face_create_for_tables (reference_table, CGFontRetain (cg_font), _hb_cg_font_release);
 }
 
-/*
+/**
+ * hb_coretext_face_get_cg_font:
+ * @face: The #hb_face_t to work upon
+ *
+ * Fetches the CGFontRef associated with an #hb_face_t
+ * face object
+ *
+ * Return value: the CGFontRef found
+ *
  * Since: 0.9.10
  */
 CGFontRef
@@ -365,10 +384,17 @@ retry:
   return font->data.coretext;
 }
 
-
-/*
+/**
+ * hb_coretext_font_create:
+ * @ct_font: The CTFontRef to work upon
+ *
+ * Creates an #hb_font_t font object from the specified
+ * CTFontRef.
+ *
+ * Return value: the new #hb_font_t font object
+ *
  * Since: 1.7.2
- */
+ **/
 hb_font_t *
 hb_coretext_font_create (CTFontRef ct_font)
 {
@@ -389,6 +415,17 @@ hb_coretext_font_create (CTFontRef ct_font)
   return font;
 }
 
+/**
+ * hb_coretext_face_get_ct_font:
+ * @font: #hb_font_t to work upon
+ *
+ * Fetches the CTFontRef associated with the specified
+ * #hb_font_t font object.
+ *
+ * Return value: the CTFontRef found
+ *
+ * Since: 0.9.10
+ */
 CTFontRef
 hb_coretext_font_get_ct_font (hb_font_t *font)
 {
@@ -598,7 +635,7 @@ _hb_coretext_shape (hb_shape_plan_t    *shape_plan,
       } else {
         active_feature_t *feature = active_features.find (&event->feature);
 	if (feature)
-	  active_features.remove (feature - active_features.arrayZ);
+	  active_features.remove (feature - active_features.arrayZ ());
       }
     }
   }
@@ -608,7 +645,7 @@ _hb_coretext_shape (hb_shape_plan_t    *shape_plan,
 
 #define ALLOCATE_ARRAY(Type, name, len, on_no_room) \
   Type *name = (Type *) scratch; \
-  do { \
+  { \
     unsigned int _consumed = DIV_CEIL ((len) * sizeof (Type), sizeof (*scratch)); \
     if (unlikely (_consumed > scratch_size)) \
     { \
@@ -617,7 +654,7 @@ _hb_coretext_shape (hb_shape_plan_t    *shape_plan,
     } \
     scratch += _consumed; \
     scratch_size -= _consumed; \
-  } while (0)
+  }
 
   ALLOCATE_ARRAY (UniChar, pchars, buffer->len * 2, /*nothing*/);
   unsigned int chars_len = 0;
@@ -771,7 +808,7 @@ resize_and_retry:
 	      feature.start < chars_len && feature.start < feature.end)
 	  {
 	    CFRange feature_range = CFRangeMake (feature.start,
-	                                         hb_min (feature.end, chars_len) - feature.start);
+	                                         MIN (feature.end, chars_len) - feature.start);
 	    if (feature.value)
 	      CFAttributedStringRemoveAttribute (attr_string, feature_range, kCTKernAttributeName);
 	    else
@@ -1116,7 +1153,7 @@ resize_and_retry:
 	unsigned int cluster = info[count - 1].cluster;
 	for (unsigned int i = count - 1; i > 0; i--)
 	{
-	  cluster = hb_min (cluster, info[i - 1].cluster);
+	  cluster = MIN (cluster, info[i - 1].cluster);
 	  info[i - 1].cluster = cluster;
 	}
       }
@@ -1125,7 +1162,7 @@ resize_and_retry:
 	unsigned int cluster = info[0].cluster;
 	for (unsigned int i = 1; i < count; i++)
 	{
-	  cluster = hb_min (cluster, info[i].cluster);
+	  cluster = MIN (cluster, info[i].cluster);
 	  info[i].cluster = cluster;
 	}
       }
