@@ -33,7 +33,7 @@ SCAN_OPTIONS=--rebuild-types --deprecated-guards="HB_DISABLE_DEPRECATED" \
 
 # Header files or dirs to ignore when scanning. Use base file/dir names
 # e.g. IGNORE_HFILES=gtkdebug.h gtkintl.h private_code
-IGNORE_HFILES=`cd $(top_srcdir)/src; find . -path './hb-*/*.h' | sed 's@^.*/@@'`
+IGNORE_HFILES=`cd $(top_srcdir)/src; find . -path './*/*.h' | sed 's@^.*/@@'`
 if HAVE_GOBJECT
 else
 IGNORE_HFILES+=hb-gobject.h hb-gobject-enums.h hb-gobject-structs.h
@@ -79,9 +79,9 @@ content_files=	\
 	usermanual-object-model.xml \
 	usermanual-buffers-language-script-and-direction.xml \
 	usermanual-fonts-and-faces.xml \
-	usermanual-opentype-features.xml \
 	usermanual-clusters.xml \
-	usermanual-utilities.xml \
+	usermanual-opentype-features.xml \
+	usermanual-glyph-information.xml \
 	version.xml
 
 # SGML files where gtk-doc abbrevations (#GtkWidget) are expanded
