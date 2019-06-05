@@ -42,6 +42,7 @@
 #include "hb-ot-post-table.hh"
 #include "hb-ot-stat-table.hh" // Just so we compile it; unused otherwise.
 #include "hb-ot-vorg-table.hh"
+#include "hb-ot-var-gvar-table.hh"
 #include "hb-ot-color-cbdt-table.hh"
 #include "hb-ot-color-sbix-table.hh"
 
@@ -157,10 +158,10 @@ hb_ot_get_glyph_v_origin (hb_font_t *font,
   }
 
   hb_glyph_extents_t extents = {0};
-  if (ot_face->glyf->get_extents (glyph, &extents))
+  if (ot_face->glyf->get_extents (font, glyph, &extents))
   {
     const OT::vmtx_accelerator_t &vmtx = *ot_face->vmtx;
-    hb_position_t tsb = vmtx.get_side_bearing (glyph);
+    hb_position_t tsb = vmtx.get_side_bearing (font, glyph);
     *y = font->em_scale_y (extents.y_bearing + tsb);
     return true;
   }
