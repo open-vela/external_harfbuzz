@@ -157,11 +157,6 @@ print (' *')
 for line in scripts_header:
 	print (' * %s' % line.strip ())
 print (' */')
-
-print ()
-print ('#include "hb.hh"')
-print ()
-print ('#ifndef HB_NO_OT_SHAPE')
 print ()
 print ('#include "hb-ot-shape-complex-vowel-constraints.hh"')
 print ()
@@ -228,6 +223,4 @@ print ('  }')
 print ('}')
 
 print ()
-print ()
-print ('#endif')
 print ('/* == End of generated functions == */')

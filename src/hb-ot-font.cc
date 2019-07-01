@@ -26,8 +26,6 @@
 
 #include "hb.hh"
 
-#ifndef HB_NO_OT_FONT
-
 #include "hb-ot.h"
 
 #include "hb-font.hh"
@@ -39,10 +37,12 @@
 #include "hb-ot-cff1-table.hh"
 #include "hb-ot-cff2-table.hh"
 #include "hb-ot-hmtx-table.hh"
+#include "hb-ot-kern-table.hh"
 #include "hb-ot-os2-table.hh"
 #include "hb-ot-post-table.hh"
 #include "hb-ot-stat-table.hh" // Just so we compile it; unused otherwise.
 #include "hb-ot-vorg-table.hh"
+#include "hb-ot-var-gvar-table.hh"
 #include "hb-ot-color-cbdt-table.hh"
 #include "hb-ot-color-sbix-table.hh"
 
@@ -150,20 +150,18 @@ hb_ot_get_glyph_v_origin (hb_font_t *font,
 
   *x = font->get_glyph_h_advance (glyph) / 2;
 
-#ifndef HB_NO_OT_FONT_CFF
   const OT::VORG &VORG = *ot_face->VORG;
   if (VORG.has_data ())
   {
     *y = font->em_scale_y (VORG.get_y_origin (glyph));
     return true;
   }
-#endif
 
   hb_glyph_extents_t extents = {0};
-  if (ot_face->glyf->get_extents (glyph, &extents))
+  if (ot_face->glyf->get_extents (font, glyph, &extents))
   {
     const OT::vmtx_accelerator_t &vmtx = *ot_face->vmtx;
-    hb_position_t tsb = vmtx.get_side_bearing (glyph);
+    hb_position_t tsb = vmtx.get_side_bearing (font, glyph);
     *y = font->em_scale_y (extents.y_bearing + tsb);
     return true;
   }
@@ -188,7 +186,7 @@ hb_ot_get_glyph_extents (hb_font_t *font,
 #if !defined(HB_NO_OT_FONT_BITMAP) && !defined(HB_NO_COLOR)
   if (!ret) ret = ot_face->sbix->get_extents (font, glyph, extents);
 #endif
-  if (!ret) ret = ot_face->glyf->get_extents (glyph, extents);
+  if (!ret) ret = ot_face->glyf->get_extents (font, glyph, extents);
 #ifndef HB_NO_OT_FONT_CFF
   if (!ret) ret = ot_face->cff1->get_extents (glyph, extents);
   if (!ret) ret = ot_face->cff2->get_extents (font, glyph, extents);
@@ -205,7 +203,6 @@ hb_ot_get_glyph_extents (hb_font_t *font,
   return ret;
 }
 
-#ifndef HB_NO_OT_FONT_GLYPH_NAMES
 static hb_bool_t
 hb_ot_get_glyph_name (hb_font_t *font HB_UNUSED,
                       void *font_data,
@@ -216,6 +213,7 @@ hb_ot_get_glyph_name (hb_font_t *font HB_UNUSED,
   const hb_ot_face_t *ot_face = (const hb_ot_face_t *) font_data;
   return ot_face->post->get_glyph_name (glyph, name, size);
 }
+
 static hb_bool_t
 hb_ot_get_glyph_from_name (hb_font_t *font HB_UNUSED,
                            void *font_data,
@@ -226,7 +224,6 @@ hb_ot_get_glyph_from_name (hb_font_t *font HB_UNUSED,
   const hb_ot_face_t *ot_face = (const hb_ot_face_t *) font_data;
   return ot_face->post->get_glyph_from_name (name, len, glyph);
 }
-#endif
 
 static hb_bool_t
 hb_ot_get_font_h_extents (hb_font_t *font,
@@ -279,10 +276,8 @@ static struct hb_ot_font_funcs_lazy_loader_t : hb_font_funcs_lazy_loader_t<hb_ot
     hb_font_funcs_set_glyph_v_origin_func (funcs, hb_ot_get_glyph_v_origin, nullptr, nullptr);
     hb_font_funcs_set_glyph_extents_func (funcs, hb_ot_get_glyph_extents, nullptr, nullptr);
     //hb_font_funcs_set_glyph_contour_point_func (funcs, hb_ot_get_glyph_contour_point, nullptr, nullptr);
-#ifndef HB_NO_OT_FONT_GLYPH_NAMES
     hb_font_funcs_set_glyph_name_func (funcs, hb_ot_get_glyph_name, nullptr, nullptr);
     hb_font_funcs_set_glyph_from_name_func (funcs, hb_ot_get_glyph_from_name, nullptr, nullptr);
-#endif
 
     hb_font_funcs_make_immutable (funcs);
 
@@ -322,6 +317,3 @@ hb_ot_font_set_funcs (hb_font_t *font)
 		     &font->face->table,
 		     nullptr);
 }
-
-
-#endif

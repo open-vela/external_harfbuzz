@@ -15,10 +15,6 @@ check_PROGRAMS =
 # Convenience targets:
 lib: $(BUILT_SOURCES) libharfbuzz.la
 libs: $(BUILT_SOURCES) $(lib_LTLIBRARIES)
-tiny:
-	$(MAKE) $(AM_MAKEFLAGS) CPPFLAGS="-Os -DHB_TINY $(CPPFLAGS)" libs
-tinyz:
-	$(MAKE) $(AM_MAKEFLAGS) CPPFLAGS="-Oz -DHB_TINY $(CPPFLAGS)" libs
 
 lib_LTLIBRARIES = libharfbuzz.la
 
@@ -31,6 +27,10 @@ HBDEPS =
 HBSOURCES =  $(HB_BASE_sources)
 HBSOURCES += $(HB_BASE_RAGEL_GENERATED_sources)
 HBHEADERS = $(HB_BASE_headers)
+
+if HAVE_FALLBACK
+HBSOURCES += $(HB_FALLBACK_sources)
+endif
 
 if HAVE_PTHREAD
 HBCFLAGS += $(PTHREAD_CFLAGS)
@@ -374,7 +374,7 @@ dump_use_data_SOURCES = dump-use-data.cc hb-ot-shape-complex-use-table.cc
 dump_use_data_CPPFLAGS = $(HBCFLAGS)
 dump_use_data_LDADD = libharfbuzz.la $(HBLIBS)
 
-COMPILED_TESTS = test-algs test-iter test-meta test-ot-tag test-unicode-ranges test-bimap
+COMPILED_TESTS = test-algs test-iter test-meta test-ot-tag test-unicode-ranges
 COMPILED_TESTS_CPPFLAGS = $(HBCFLAGS) -DMAIN -UNDEBUG
 COMPILED_TESTS_LDADD = libharfbuzz.la $(HBLIBS)
 check_PROGRAMS += $(COMPILED_TESTS)
@@ -399,10 +399,6 @@ test_ot_tag_LDADD = $(COMPILED_TESTS_LDADD)
 test_unicode_ranges_SOURCES = test-unicode-ranges.cc
 test_unicode_ranges_CPPFLAGS = $(COMPILED_TESTS_CPPFLAGS)
 test_unicode_ranges_LDADD = $(COMPILED_TESTS_LDADD)
-
-test_bimap_SOURCES = test-bimap.cc hb-static.cc
-test_bimap_CPPFLAGS = $(COMPILED_TESTS_CPPFLAGS)
-test_bimap_LDADD = $(COMPILED_TESTS_LDADD)
 
 TESTS_ENVIRONMENT = \
 	srcdir="$(srcdir)" \
@@ -432,7 +428,6 @@ HarfBuzz_0_0_gir_CFLAGS = \
 	-DHB_AAT_H_IN \
 	-DHB_GOBJECT_H \
 	-DHB_GOBJECT_H_IN \
-	-DHAVE_GOBJECT \
 	-DHB_EXTERN= \
 	$(NULL)
 HarfBuzz_0_0_gir_LIBS = \

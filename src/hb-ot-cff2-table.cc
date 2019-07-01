@@ -24,12 +24,10 @@
  * Adobe Author(s): Michiharu Ariza
  */
 
-#include "hb.hh"
-
-#ifndef HB_NO_OT_FONT_CFF
-
 #include "hb-ot-cff2-table.hh"
 #include "hb-cff2-interp-cs.hh"
+
+#ifndef HB_NO_OT_FONT_CFF
 
 using namespace CFF;
 
@@ -143,6 +141,5 @@ bool OT::cff2::accelerator_t::get_extents (hb_font_t *font,
 
   return true;
 }
-
 
 #endif

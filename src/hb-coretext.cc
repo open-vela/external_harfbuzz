@@ -27,9 +27,6 @@
  */
 
 #include "hb.hh"
-
-#ifdef HAVE_CORETEXT
-
 #include "hb-shaper-impl.hh"
 
 #include "hb-coretext.h"
@@ -652,7 +649,7 @@ _hb_coretext_shape (hb_shape_plan_t    *shape_plan,
     DEBUG_MSG (CORETEXT, nullptr, __VA_ARGS__); \
     ret = false; \
     goto fail; \
-  } HB_STMT_END
+  } HB_STMT_END;
 
   bool ret = true;
   CFStringRef string_ref = nullptr;
@@ -980,7 +977,7 @@ resize_and_retry:
 
 #define SCRATCH_RESTORE() \
   scratch_size = scratch_size_saved; \
-  scratch = scratch_saved
+  scratch = scratch_saved;
 
       { /* Setup glyphs */
         SCRATCH_SAVE();
@@ -1151,6 +1148,3 @@ fail:
 
   return ret;
 }
-
-
-#endif

@@ -28,8 +28,6 @@
 
 #include "hb.hh"
 
-#ifdef HAVE_GLIB
-
 #include "hb-glib.h"
 
 #include "hb-machinery.hh"
@@ -405,7 +403,4 @@ hb_glib_blob_create (GBytes *gbytes)
 			 g_bytes_ref (gbytes),
 			 _hb_g_bytes_unref);
 }
-#endif
-
-
 #endif

@@ -46,12 +46,16 @@ void hb_ot_face_t::init0 (hb_face_t *face)
 {
   this->face = face;
 #define HB_OT_TABLE(Namespace, Type) Type.init0 ();
-#include "hb-ot-face-table-list.hh"
+#define HB_OT_ACCELERATOR(Namespace, Type) HB_OT_TABLE (Namespace, Type)
+  HB_OT_TABLES
+#undef HB_OT_ACCELERATOR
 #undef HB_OT_TABLE
 }
 void hb_ot_face_t::fini ()
 {
 #define HB_OT_TABLE(Namespace, Type) Type.fini ();
-#include "hb-ot-face-table-list.hh"
+#define HB_OT_ACCELERATOR(Namespace, Type) HB_OT_TABLE (Namespace, Type)
+  HB_OT_TABLES
+#undef HB_OT_ACCELERATOR
 #undef HB_OT_TABLE
 }
