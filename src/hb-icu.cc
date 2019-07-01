@@ -29,8 +29,6 @@
 
 #include "hb.hh"
 
-#ifdef HAVE_ICU
-
 #include "hb-icu.h"
 
 #include "hb-machinery.hh"
@@ -353,6 +351,3 @@ hb_icu_get_unicode_funcs ()
 {
   return static_icu_funcs.get_unconst ();
 }
-
-
-#endif

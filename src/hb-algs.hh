@@ -41,11 +41,6 @@
 #define HB_CODEPOINT_DECODE3_2(v) ((hb_codepoint_t) ((v) >> 21) & 0x1FFFFFu)
 #define HB_CODEPOINT_DECODE3_3(v) ((hb_codepoint_t) (v) & 0x1FFFFFu)
 
-/* Custom encoding used by hb-ucd. */
-#define HB_CODEPOINT_ENCODE3_11_7_14(x,y,z) (((uint32_t) ((x) & 0x07FFu) << 21) | (((uint32_t) (y) & 0x007Fu) << 14) | (uint32_t) ((z) & 0x3FFFu))
-#define HB_CODEPOINT_DECODE3_11_7_14_1(v) ((hb_codepoint_t) ((v) >> 21))
-#define HB_CODEPOINT_DECODE3_11_7_14_2(v) ((hb_codepoint_t) (((v) >> 14) & 0x007Fu) | 0x0300)
-#define HB_CODEPOINT_DECODE3_11_7_14_3(v) ((hb_codepoint_t) (v) & 0x3FFFu)
 
 struct
 {
@@ -945,12 +940,6 @@ struct hb_bitwise_sub
   operator () (const T &a, const T &b) const HB_AUTO_RETURN (a & ~b)
 }
 HB_FUNCOBJ (hb_bitwise_sub);
-struct
-{
-  template <typename T> auto
-  operator () (const T &a) const HB_AUTO_RETURN (~a)
-}
-HB_FUNCOBJ (hb_bitwise_neg);
 
 struct
 { HB_PARTIALIZE(2);
@@ -999,29 +988,28 @@ HB_FUNCOBJ (hb_neg);
 /* Compiler-assisted vectorization. */
 
 /* Type behaving similar to vectorized vars defined using __attribute__((vector_size(...))),
- * basically a fixed-size bitset. */
+ * using vectorized operations if HB_VECTOR_SIZE is set to **bit** numbers (eg 128).
+ * Define that to 0 to disable. */
 template <typename elt_t, unsigned int byte_size>
 struct hb_vector_size_t
 {
-  elt_t& operator [] (unsigned int i) { return v[i]; }
-  const elt_t& operator [] (unsigned int i) const { return v[i]; }
+  elt_t& operator [] (unsigned int i) { return u.v[i]; }
+  const elt_t& operator [] (unsigned int i) const { return u.v[i]; }
 
   void clear (unsigned char v = 0) { memset (this, v, sizeof (*this)); }
 
   template <typename Op>
-  hb_vector_size_t process (const Op& op) const
-  {
-    hb_vector_size_t r;
-    for (unsigned int i = 0; i < ARRAY_LENGTH (v); i++)
-      r.v[i] = op (v[i]);
-    return r;
-  }
-  template <typename Op>
   hb_vector_size_t process (const Op& op, const hb_vector_size_t &o) const
   {
     hb_vector_size_t r;
-    for (unsigned int i = 0; i < ARRAY_LENGTH (v); i++)
-      r.v[i] = op (v[i], o.v[i]);
+#if HB_VECTOR_SIZE
+    if (HB_VECTOR_SIZE && 0 == (byte_size * 8) % HB_VECTOR_SIZE)
+      for (unsigned int i = 0; i < ARRAY_LENGTH (u.vec); i++)
+	r.u.vec[i] = op (u.vec[i], o.u.vec[i]);
+    else
+#endif
+      for (unsigned int i = 0; i < ARRAY_LENGTH (u.v); i++)
+	r.u.v[i] = op (u.v[i], o.u.v[i]);
     return r;
   }
   hb_vector_size_t operator | (const hb_vector_size_t &o) const
@@ -1031,11 +1019,27 @@ struct hb_vector_size_t
   hb_vector_size_t operator ^ (const hb_vector_size_t &o) const
   { return process (hb_bitwise_xor, o); }
   hb_vector_size_t operator ~ () const
-  { return process (hb_bitwise_neg); }
+  {
+    hb_vector_size_t r;
+#if HB_VECTOR_SIZE && 0
+    if (HB_VECTOR_SIZE && 0 == (byte_size * 8) % HB_VECTOR_SIZE)
+      for (unsigned int i = 0; i < ARRAY_LENGTH (u.vec); i++)
+	r.u.vec[i] = ~u.vec[i];
+    else
+#endif
+    for (unsigned int i = 0; i < ARRAY_LENGTH (u.v); i++)
+      r.u.v[i] = ~u.v[i];
+    return r;
+  }
 
   private:
-  static_assert (0 == byte_size % sizeof (elt_t), "");
-  elt_t v[byte_size / sizeof (elt_t)];
+  static_assert (byte_size / sizeof (elt_t) * sizeof (elt_t) == byte_size, "");
+  union {
+    elt_t v[byte_size / sizeof (elt_t)];
+#if HB_VECTOR_SIZE
+    hb_vector_size_impl_t vec[byte_size / sizeof (hb_vector_size_impl_t)];
+#endif
+  } u;
 };
 
 

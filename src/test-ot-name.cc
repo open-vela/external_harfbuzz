@@ -30,10 +30,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#ifdef HB_NO_OPEN
-#define hb_blob_create_from_file(x)  hb_blob_get_empty ()
-#endif
-
 int
 main (int argc, char **argv)
 {
@@ -47,9 +43,7 @@ main (int argc, char **argv)
   hb_blob_destroy (blob);
   blob = nullptr;
 
-  unsigned int count = 0;
-
-#ifndef HB_NO_NAME
+  unsigned int count;
   const hb_ot_name_entry_t *entries = hb_ot_name_list_names (face, &count);
 
   for (unsigned int i = 0; i < count; i++)
@@ -68,7 +62,6 @@ main (int argc, char **argv)
 
     printf ("%s\n", buf);
   }
-#endif
 
   hb_face_destroy (face);
 

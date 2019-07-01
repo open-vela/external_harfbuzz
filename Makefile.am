@@ -13,7 +13,6 @@ EXTRA_DIST = \
 	README.mingw.md \
 	README.python.md \
 	BUILD.md \
-	CONFIG.md \
 	RELEASING.md \
 	TESTING.md \
 	CMakeLists.txt \
