@@ -33,7 +33,7 @@ def cmd(command):
 		def timeout(p, is_killed):
 			is_killed['value'] = True
 			p.kill()
-		timer = threading.Timer (6, timeout, [p, is_killed])
+		timer = threading.Timer (2, timeout, [p, is_killed])
 
 		try:
 			timer.start()
@@ -82,8 +82,6 @@ def run_dir (parent_path):
 	global fails
 	for file in os.listdir (parent_path):
 		path = os.path.join(parent_path, file)
-		# TODO: Run on all the fonts not just subset related ones
-		if "subset" not in path: continue
 
 		print ("running subset fuzzer against %s" % path)
 		if valgrind:
@@ -93,7 +91,7 @@ def run_dir (parent_path):
 			if 'error' in text:
 				returncode = 1
 
-		if (not valgrind or returncode) and text.strip ():
+		if not valgrind and text.strip ():
 			print (text)
 
 		if returncode != 0:
@@ -102,7 +100,8 @@ def run_dir (parent_path):
 
 
 run_dir (os.path.join (srcdir, "..", "subset", "data", "fonts"))
-run_dir (os.path.join (srcdir, "fonts"))
+# TODO running these tests very slow tests.  Fix and re-enable
+#run_dir (os.path.join (srcdir, "fonts"))
 
 if fails:
         print ("%i subset fuzzer related tests failed." % fails)

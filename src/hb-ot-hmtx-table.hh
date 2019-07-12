@@ -53,12 +53,6 @@ struct LongMetric
   DEFINE_SIZE_STATIC (4);
 };
 
-struct hmtxvmtx_accelerator_base_t
-{
-  HB_INTERNAL static int get_side_bearing_var_tt (hb_font_t *font, hb_codepoint_t glyph, bool vertical);
-  HB_INTERNAL static unsigned int get_advance_var_tt (hb_font_t *font, hb_codepoint_t glyph, bool vertical);
-};
-
 template <typename T, typename H>
 struct hmtxvmtx
 {
@@ -94,22 +88,22 @@ struct hmtxvmtx
 
   template<typename Iterator,
            hb_requires (hb_is_iterator (Iterator))>
-  void serialize (hb_serialize_context_t *c,
-                  Iterator it,
+  void serialize (hb_serialize_context_t *c, 
+                  Iterator it, 
                   unsigned num_advances)
   {
     unsigned idx = 0;
     + it
     | hb_apply ([c, &idx, num_advances] (const hb_item_type<Iterator>& _)
                 {
-                  if (idx < num_advances)
+                  if (idx < num_advances) 
                   {
                     LongMetric lm;
                     lm.advance = _.first;
                     lm.sb = _.second;
                     if (unlikely (!c->embed<LongMetric> (&lm))) return;
-                  }
-                  else
+                  } 
+                  else 
                   {
                     FWORD *sb = c->allocate_size<FWORD> (FWORD::static_size);
                     if (unlikely (!sb)) return;
@@ -126,12 +120,12 @@ struct hmtxvmtx
 
     T *table_prime = c->serializer->start_embed <T> ();
     if (unlikely (!table_prime)) return_trace (false);
-
+    
     accelerator_t _mtx;
     _mtx.init (c->plan->source);
     unsigned num_advances = _mtx.num_advances_for_subset (c->plan);
-
-    auto it =
+    
+    auto it = 
     + hb_range (c->plan->num_output_glyphs ())
     | hb_map ([c, &_mtx] (unsigned _)
 	{
@@ -139,7 +133,7 @@ struct hmtxvmtx
 	  if (c->plan->old_gid_for_new_gid (_, &old_gid))
             return hb_pair (_mtx.get_advance (old_gid), _mtx.get_side_bearing (old_gid));
           else
-	    return hb_pair (0u, 0);
+	    return hb_pair (0u, 0u);
 	})
     ;
 
@@ -159,14 +153,13 @@ struct hmtxvmtx
     return_trace (true);
   }
 
-  struct accelerator_t : hmtxvmtx_accelerator_base_t
+  struct accelerator_t
   {
     friend struct hmtxvmtx;
 
     void init (hb_face_t *face,
                unsigned int default_advance_ = 0)
     {
-      memset (this, 0, sizeof (*this));
       default_advance = default_advance_ ? default_advance_ : hb_face_get_upem (face);
 
       bool got_font_extents = false;
@@ -218,9 +211,8 @@ struct hmtxvmtx
       var_table.destroy ();
     }
 
-    bool has_data () const { return table.get () != nullptr; }
-
-    int get_side_bearing (hb_codepoint_t glyph) const
+    /* TODO Add variations version. */
+    unsigned int get_side_bearing (hb_codepoint_t glyph) const
     {
       if (glyph < num_advances)
         return table->longMetricZ[glyph].sb;
@@ -230,22 +222,6 @@ struct hmtxvmtx
 
       const FWORD *bearings = (const FWORD *) &table->longMetricZ[num_advances];
       return bearings[glyph - num_advances];
-    }
-
-    int get_side_bearing (hb_font_t *font, hb_codepoint_t glyph) const
-    {
-      int side_bearing = get_side_bearing (glyph);
-      if (likely (glyph < num_metrics))
-      {
-	if (font->num_coords)
-	{
-	  if (var_table.get_blob () != hb_blob_get_empty ())
-	    side_bearing += var_table->get_side_bearing_var (glyph, font->coords, font->num_coords); // TODO Optimize?!
-	  else
-	    side_bearing = get_side_bearing_var_tt (font, glyph, T::tableTag==HB_OT_TAG_vmtx);
-	}
-      }
-      return side_bearing;
     }
 
     unsigned int get_advance (hb_codepoint_t glyph) const
@@ -270,13 +246,7 @@ struct hmtxvmtx
       unsigned int advance = get_advance (glyph);
       if (likely (glyph < num_metrics))
       {
-      	if (font->num_coords)
-      	{
-	  if (var_table.get_blob () != hb_blob_get_empty ())
-	    advance += roundf (var_table->get_advance_var (glyph, font->coords, font->num_coords)); // TODO Optimize?!
-	  else
-	    advance = get_advance_var_tt (font, glyph, T::tableTag==HB_OT_TAG_vmtx);
-	}
+	advance += (font->num_coords ? var_table->get_advance_var (glyph, font->coords, font->num_coords) : 0); // TODO Optimize?!
       }
       return advance;
     }
