@@ -12,6 +12,8 @@ DISTCHECK_CONFIGURE_FLAGS = --enable-introspection
 TESTS =
 check_PROGRAMS =
 
+EXTRA_DIST += harfbuzz.cc
+
 # Convenience targets:
 lib: $(BUILT_SOURCES) libharfbuzz.la
 libs: $(BUILT_SOURCES) $(lib_LTLIBRARIES)
@@ -253,31 +255,38 @@ GENERATORS = \
 	$(NULL)
 EXTRA_DIST += $(GENERATORS)
 
-unicode-tables: arabic-table indic-table tag-table use-table emoji-table
+unicode-tables: \
+	arabic-table \
+	emoji-table \
+	indic-table \
+	tag-table \
+	ucd-table \
+	use-table \
+	emoji-table \
+	$(NULL)
 
 arabic-table: gen-arabic-table.py ArabicShaping.txt UnicodeData.txt Blocks.txt
 	$(AM_V_GEN) $(builddir)/$^ > $(srcdir)/hb-ot-shape-complex-arabic-table.hh \
 	|| ($(RM) $(srcdir)/hb-ot-shape-complex-arabic-table.hh; false)
-
+emoji-table: gen-emoji-table.py emoji-data.txt
+	$(AM_V_GEN) $(builddir)/$^ > $(srcdir)/hb-unicode-emoji-table.hh \
+	|| ($(RM) $(srcdir)/hb-unicode-emoji-table.hh; false)
 indic-table: gen-indic-table.py IndicSyllabicCategory.txt IndicPositionalCategory.txt Blocks.txt
 	$(AM_V_GEN) $(builddir)/$^ > $(srcdir)/hb-ot-shape-complex-indic-table.cc \
 	|| ($(RM) $(srcdir)/hb-ot-shape-complex-indic-table.cc; false)
-
 tag-table: gen-tag-table.py languagetags language-subtag-registry
 	$(AM_V_GEN) $(builddir)/$^ > $(srcdir)/hb-ot-tag-table.hh \
 	|| ($(RM) $(srcdir)/hb-ot-tag-table.hh; false)
-
+ucd-table: gen-ucd-table.py ucd.nounihan.grouped.zip hb-common.h
+	$(AM_V_GEN) $(builddir)/$^ > $(srcdir)/hb-ucd-table.hh \
+	|| ($(RM) $(srcdir)/hb-ucd-table.hh; false)
 use-table: gen-use-table.py IndicSyllabicCategory.txt IndicPositionalCategory.txt UnicodeData.txt Blocks.txt
 	$(AM_V_GEN) $(builddir)/$^ > $(srcdir)/hb-ot-shape-complex-use-table.cc \
 	|| ($(RM) $(srcdir)/hb-ot-shape-complex-use-table.cc; false)
-
 vowel-constraints: gen-vowel-constraints.py HBIndicVowelConstraints.txt Scripts.txt
 	$(AM_V_GEN) $(builddir)/$^ > $(srcdir)/hb-ot-shape-complex-vowel-constraints.cc \
 	|| ($(RM) $(srcdir)/hb-ot-shape-complex-vowel-constraints.cc; false)
 
-emoji-table: gen-emoji-table.py emoji-data.txt
-	$(AM_V_GEN) $(builddir)/$^ > $(srcdir)/hb-unicode-emoji-table.hh \
-	|| ($(RM) $(srcdir)/hb-unicode-emoji-table.hh; false)
 
 built-sources: $(BUILT_SOURCES)
 
@@ -295,6 +304,21 @@ EXTRA_DIST += \
 $(srcdir)/%.hh: $(srcdir)/%.rl
 	$(AM_V_GEN)(cd $(srcdir) && $(RAGEL) -e -F1 -o "$*.hh" "$*.rl") \
 	|| ($(RM) "$@"; false)
+
+harfbuzz.cc: Makefile.sources
+	$(AM_V_GEN) \
+	for f in \
+		$(HB_BASE_sources) \
+		$(HB_GLIB_sources) \
+		$(HB_FT_sources) \
+		$(HB_GRAPHITE2_sources) \
+		$(HB_UNISCRIBE_sources) \
+		$(HB_DIRECTWRITE_sources) \
+		$(HB_CORETEXT_sources) \
+		; do echo '#include "'$$f'"'; done | \
+	grep '[.]cc"' > $(srcdir)/harfbuzz.cc \
+	|| ($(RM) $(srcdir)/harfbuzz.cc; false)
+BUILT_SOURCES += harfbuzz.cc
 
 noinst_PROGRAMS = \
 	main \
