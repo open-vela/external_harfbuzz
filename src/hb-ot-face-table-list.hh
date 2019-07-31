@@ -97,12 +97,8 @@ HB_OT_TABLE (OT, kern)
 HB_OT_ACCELERATOR (OT, GDEF)
 HB_OT_ACCELERATOR (OT, GSUB)
 HB_OT_ACCELERATOR (OT, GPOS)
+//HB_OT_TABLE (OT, BASE)
 //HB_OT_TABLE (OT, JSTF)
-#endif
-
-/* OpenType baseline. */
-#ifndef HB_NO_BASE
-HB_OT_TABLE (OT, BASE)
 #endif
 
 /* AAT shaping. */
