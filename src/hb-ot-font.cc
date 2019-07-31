@@ -43,6 +43,7 @@
 #include "hb-ot-post-table.hh"
 #include "hb-ot-stat-table.hh" // Just so we compile it; unused otherwise.
 #include "hb-ot-vorg-table.hh"
+#include "hb-ot-var-gvar-table.hh"
 #include "hb-ot-color-cbdt-table.hh"
 #include "hb-ot-color-sbix-table.hh"
 
@@ -160,10 +161,10 @@ hb_ot_get_glyph_v_origin (hb_font_t *font,
 #endif
 
   hb_glyph_extents_t extents = {0};
-  if (ot_face->glyf->get_extents (glyph, &extents))
+  if (ot_face->glyf->get_extents (font, glyph, &extents))
   {
     const OT::vmtx_accelerator_t &vmtx = *ot_face->vmtx;
-    hb_position_t tsb = vmtx.get_side_bearing (glyph);
+    hb_position_t tsb = vmtx.get_side_bearing (font, glyph);
     *y = font->em_scale_y (extents.y_bearing + tsb);
     return true;
   }
@@ -188,7 +189,7 @@ hb_ot_get_glyph_extents (hb_font_t *font,
 #if !defined(HB_NO_OT_FONT_BITMAP) && !defined(HB_NO_COLOR)
   if (!ret) ret = ot_face->sbix->get_extents (font, glyph, extents);
 #endif
-  if (!ret) ret = ot_face->glyf->get_extents (glyph, extents);
+  if (!ret) ret = ot_face->glyf->get_extents (font, glyph, extents);
 #ifndef HB_NO_OT_FONT_CFF
   if (!ret) ret = ot_face->cff1->get_extents (glyph, extents);
   if (!ret) ret = ot_face->cff2->get_extents (font, glyph, extents);
@@ -234,9 +235,9 @@ hb_ot_get_font_h_extents (hb_font_t *font,
 			  hb_font_extents_t *metrics,
 			  void *user_data HB_UNUSED)
 {
-  return _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_TAG_HORIZONTAL_ASCENDER, &metrics->ascender) &&
-	 _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_TAG_HORIZONTAL_DESCENDER, &metrics->descender) &&
-	 _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_TAG_HORIZONTAL_LINE_GAP, &metrics->line_gap);
+  return _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_HORIZONTAL_ASCENDER, &metrics->ascender) &&
+	 _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_HORIZONTAL_DESCENDER, &metrics->descender) &&
+	 _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_HORIZONTAL_LINE_GAP, &metrics->line_gap);
 }
 
 static hb_bool_t
@@ -245,9 +246,9 @@ hb_ot_get_font_v_extents (hb_font_t *font,
 			  hb_font_extents_t *metrics,
 			  void *user_data HB_UNUSED)
 {
-  return _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_TAG_VERTICAL_ASCENDER, &metrics->ascender) &&
-	 _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_TAG_VERTICAL_DESCENDER, &metrics->descender) &&
-	 _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_TAG_VERTICAL_LINE_GAP, &metrics->line_gap);
+  return _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_VERTICAL_ASCENDER, &metrics->ascender) &&
+	 _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_VERTICAL_DESCENDER, &metrics->descender) &&
+	 _hb_ot_metrics_get_position_common (font, HB_OT_METRICS_VERTICAL_LINE_GAP, &metrics->line_gap);
 }
 
 #if HB_USE_ATEXIT
