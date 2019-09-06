@@ -541,7 +541,7 @@ struct FeatureParams
   FeatureParamsCharacterVariants	characterVariants;
   } u;
   public:
-  DEFINE_SIZE_STATIC (17);
+  DEFINE_SIZE_MIN (0);
 };
 
 struct Feature
