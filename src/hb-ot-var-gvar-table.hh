@@ -44,7 +44,7 @@ struct contour_point_t
   void init (float x_=0.f, float y_=0.f) { flag = 0; x = x_; y = y_; }
 
   void translate (const contour_point_t &p) { x += p.x; y += p.y; }
-  
+
   uint8_t	flag;
   float		x, y;
 };
@@ -227,7 +227,7 @@ struct GlyphVarData
       current_tuple = &var_data->get_tuple_var_header ();
       data_offset = 0;
     }
-  
+
     bool get_shared_indices (hb_vector_t<unsigned int> &shared_indices /* OUT */)
     {
       if (var_data->has_shared_point_numbers ())
@@ -393,7 +393,7 @@ struct GlyphVarData
   TupleVarCount		tupleVarCount;
   OffsetTo<HBUINT8>	data;
   /* TupleVarHeader tupleVarHeaders[] */
-  
+
   public:
   DEFINE_SIZE_MIN (4);
 };
@@ -474,7 +474,7 @@ struct gvar
 	((HBUINT32 *)subset_offsets)[gid] = glyph_offset;
       else
       	((HBUINT16 *)subset_offsets)[gid] = glyph_offset / 2;
-      
+
       if (length > 0) memcpy (subset_data, get_glyph_var_data (old_gid), length);
       subset_data += length;
       glyph_offset += length;
@@ -694,8 +694,8 @@ no_more_gaps:
 	/* apply specified / inferred deltas to points */
 	for (unsigned int i = 0; i < points.length; i++)
 	{
-	  points[i].x += roundf (deltas[i].x);
-	  points[i].y += roundf (deltas[i].y);
+	  points[i].x += (float) roundf (deltas[i].x);
+	  points[i].y += (float) roundf (deltas[i].y);
 	}
       } while (iterator.move_to_next ());
 

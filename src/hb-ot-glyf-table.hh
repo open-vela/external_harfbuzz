@@ -23,7 +23,7 @@
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
  *
-* Google Author(s): Behdad Esfahbod, Garret Rieger, Roderick Sheeter
+ * Google Author(s): Behdad Esfahbod, Garret Rieger, Roderick Sheeter
  * Adobe Author(s): Michiharu Ariza
  */
 
@@ -103,6 +103,7 @@ struct glyf
     DEBUG_MSG (SUBSET, nullptr, "loca entry_size %d num_offsets %d "
 				"max_offset %d size %d",
 	       entry_size, num_offsets, max_offset, entry_size * num_offsets);
+
     if (use_short_loca)
       _write_loca (padded_offsets, 1, hb_array ((HBUINT16*) loca_prime_data, num_offsets));
     else
@@ -115,7 +116,7 @@ struct glyf
 					    free);
 
     bool result = plan->add_table (HB_OT_TAG_loca, loca_blob)
-		  && _add_head_and_set_loca_version( plan, use_short_loca);
+		  && _add_head_and_set_loca_version (plan, use_short_loca);
 
     hb_blob_destroy (loca_blob);
     return result;
@@ -231,13 +232,11 @@ struct glyf
   _zero_instruction_length (hb_bytes_t glyph)
   {
     const GlyphHeader &glyph_header = *glyph.as<GlyphHeader> ();
-    int16_t num_contours = (int16_t) glyph_header.numberOfContours;
-    if (num_contours <= 0) return;  // only for simple glyphs
+    if (!glyph_header.is_simple_glyph ()) return;  // only for simple glyphs
 
-    unsigned int contours_length = GlyphHeader::static_size + 2 * num_contours;
-    const HBUINT16 &instruction_length = StructAtOffset<HBUINT16> (&glyph,
-								   contours_length);
-    (HBUINT16 &) instruction_length = 0;
+    unsigned int instruction_len_offset = glyph_header.simple_instruction_len_offset ();
+    const HBUINT16 &instruction_len = StructAtOffset<HBUINT16> (&glyph, instruction_len_offset);
+    (HBUINT16 &) instruction_len = 0;
   }
 
   static bool _remove_composite_instruction_flag (hb_bytes_t glyph)
@@ -321,8 +320,8 @@ struct glyf
       UNSCALED_COMPONENT_OFFSET =  0x1000
     };
 
-    HBUINT16 flags;
-    HBGlyphID  glyphIndex;
+    HBUINT16	flags;
+    HBGlyphID	glyphIndex;
 
     unsigned int get_size () const
     {
@@ -585,9 +584,9 @@ struct glyf
       float v = 0;
       for (unsigned int i = 0; i < points_.length - PHANTOM_COUNT; i++)
       {
-      	uint8_t flag = points_[i].flag;
-      	if (coord_setter.is_short (flag))
-      	{
+	uint8_t flag = points_[i].flag;
+	if (coord_setter.is_short (flag))
+	{
 	  if (unlikely (!checker.in_range (p))) return false;
 	  if (coord_setter.is_same (flag))
 	    v += *p++;
@@ -712,10 +711,10 @@ struct glyf
 
       void add (const contour_point_t &p)
       {
-      	min.x = hb_min (min.x, p.x);
-      	min.y = hb_min (min.y, p.y);
-      	max.x = hb_max (max.x, p.x);
-      	max.y = hb_max (max.y, p.y);
+	min.x = hb_min (min.x, p.x);
+	min.y = hb_min (min.y, p.y);
+	max.x = hb_max (max.x, p.x);
+	max.y = hb_max (max.y, p.y);
       }
 
       bool empty () const { return (min.x >= max.x) || (min.y >= max.y); }
@@ -966,8 +965,7 @@ struct glyf
 	// only 0 byte glyphs are healthy when missing GlyphHeader
 	return glyph.length == 0;
       }
-      int16_t num_contours = (int16_t) glyph_header.numberOfContours;
-      if (num_contours < 0)
+      if (glyph_header.is_composite_glyph ())
       {
 	unsigned int start = glyph.length;
 	unsigned int end = glyph.length;
@@ -995,14 +993,14 @@ struct glyf
       }
       else
       {
-	unsigned int instruction_length_offset = GlyphHeader::static_size + 2 * num_contours;
-	if (unlikely (instruction_length_offset + 2 > glyph.length))
+	unsigned int instruction_len_offset = glyph_header.simple_instruction_len_offset ();
+	if (unlikely (instruction_len_offset + 2 > glyph.length))
 	{
 	  DEBUG_MSG(SUBSET, nullptr, "Glyph size is too short, missing field instructionLength.");
 	  return false;
 	}
 
-	const HBUINT16 &instruction_len = StructAtOffset<HBUINT16> (&glyph, instruction_length_offset);
+	const HBUINT16 &instruction_len = StructAtOffset<HBUINT16> (&glyph, instruction_len_offset);
 	/* Out of bounds of the current glyph */
 	if (unlikely (glyph_header.simple_length (instruction_len) > glyph.length))
 	{
@@ -1029,9 +1027,9 @@ struct glyf
 	return vertical? vmtx_accel.get_advance (glyph): hmtx_accel.get_advance (glyph);
 
       if (vertical)
-      	return (unsigned int)roundf (phantoms[PHANTOM_TOP].y - phantoms[PHANTOM_BOTTOM].y);
+	return roundf (phantoms[PHANTOM_TOP].y - phantoms[PHANTOM_BOTTOM].y);
       else
-      	return (unsigned int)roundf (phantoms[PHANTOM_RIGHT].x - phantoms[PHANTOM_LEFT].x);
+	return roundf (phantoms[PHANTOM_RIGHT].x - phantoms[PHANTOM_LEFT].x);
     }
 
     int get_side_bearing_var (hb_codepoint_t glyph, const int *coords, unsigned int coord_count, bool vertical) const
@@ -1051,7 +1049,7 @@ struct glyf
       unsigned int coord_count;
       const int *coords = hb_font_get_var_coords_normalized (font, &coord_count);
       if (coords && coord_count > 0 && coord_count == gvar_accel.get_axis_count ())
-      	return get_extents_var (glyph, coords, coord_count, extents);
+	return get_extents_var (glyph, coords, coord_count, extents);
 
       unsigned int start_offset, end_offset;
       if (!get_offsets (glyph, &start_offset, &end_offset))
@@ -1108,8 +1106,8 @@ struct glyf
     hb_codepoint_t new_gid;
     hb_codepoint_t old_gid;
     hb_bytes_t source_glyph;
-    hb_bytes_t dest_start;  // region of source_glyph to copy first
-    hb_bytes_t dest_end;    // region of source_glyph to copy second
+    hb_bytes_t dest_start;  /* region of source_glyph to copy first */
+    hb_bytes_t dest_end;    /* region of source_glyph to copy second */
 
 
   bool serialize (hb_serialize_context_t *c,
@@ -1117,7 +1115,7 @@ struct glyf
   {
     TRACE_SERIALIZE (this);
 
-    hb_bytes_t dest_glyph = dest_start.copy(c);
+    hb_bytes_t dest_glyph = dest_start.copy (c);
     dest_glyph = hb_bytes_t (&dest_glyph, dest_glyph.length + dest_end.copy(c).length);
     unsigned int pad_length = padding ();
     DEBUG_MSG(SUBSET, nullptr, "serialize %d byte glyph, width %d pad %d", dest_glyph.length, dest_glyph.length  + pad_length, pad_length);
@@ -1176,9 +1174,9 @@ struct glyf
       }
     }
 
-    unsigned int length ()      const { return dest_start.length + dest_end.length; }
+    unsigned int      length () const { return dest_start.length + dest_end.length; }
     /* pad to 2 to ensure 2-byte loca will be ok */
-    unsigned int padding ()     const { return length () % 2; }
+    unsigned int     padding () const { return length () % 2; }
     unsigned int padded_size () const { return length () + padding (); }
   };
 
