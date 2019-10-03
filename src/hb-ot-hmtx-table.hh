@@ -55,8 +55,14 @@ struct LongMetric
 
 struct hmtxvmtx_accelerator_base_t
 {
-  HB_INTERNAL static int get_side_bearing_var_tt (hb_font_t *font, hb_codepoint_t glyph, bool vertical);
-  HB_INTERNAL static unsigned int get_advance_var_tt (hb_font_t *font, hb_codepoint_t glyph, bool vertical);
+  static int get_side_bearing_var_tt (hb_font_t *font HB_UNUSED,
+				      hb_codepoint_t glyph HB_UNUSED,
+				      bool is_vertical HB_UNUSED)
+  { return 0; } /* Not implemented yet */
+  static unsigned int get_advance_var_tt (hb_font_t *font HB_UNUSED,
+					  hb_codepoint_t glyph HB_UNUSED,
+					  bool is_vertical HB_UNUSED)
+  { return 0; } /* Not implemented yet */
 };
 
 template <typename T, typename H>
@@ -166,7 +172,6 @@ struct hmtxvmtx
     void init (hb_face_t *face,
 	       unsigned int default_advance_ = 0)
     {
-      memset (this, 0, sizeof (*this));
       default_advance = default_advance_ ? default_advance_ : hb_face_get_upem (face);
 
       num_advances = T::is_horizontal ? face->table.hhea->numberOfLongMetrics : face->table.vhea->numberOfLongMetrics;
@@ -216,8 +221,8 @@ struct hmtxvmtx
       if (unlikely (glyph >= num_metrics) || !font->num_coords)
 	return side_bearing;
 
-      if (var_table.get_blob () == &Null (hb_blob_t))
-	return get_side_bearing_var_tt (font, glyph, T::tableTag == HB_OT_TAG_vmtx);
+//       if (var_table.get_blob () == &Null (hb_blob_t))
+// 	return get_side_bearing_var_tt (font, glyph, T::tableTag == HB_OT_TAG_vmtx);
 
       return side_bearing + var_table->get_side_bearing_var (glyph, font->coords, font->num_coords); // TODO Optimize?!
     }
@@ -246,8 +251,8 @@ struct hmtxvmtx
       if (unlikely (glyph >= num_metrics) || !font->num_coords)
 	return advance;
 
-      if (var_table.get_blob () == &Null (hb_blob_t))
-	return get_advance_var_tt (font, glyph, T::tableTag == HB_OT_TAG_vmtx);
+//       if (var_table.get_blob () == &Null (hb_blob_t))
+// 	return get_advance_var_tt (font, glyph, T::tableTag == HB_OT_TAG_vmtx);
 
       return advance + roundf (var_table->get_advance_var (glyph, font->coords, font->num_coords)); // TODO Optimize?!
     }
