@@ -612,7 +612,7 @@ struct CFF1StringIndex : CFF1Index
     for (unsigned int i = 0; i < strings.count; i++)
     {
       hb_codepoint_t  j = sidmap[i];
-      if (j != HB_MAP_VALUE_INVALID)
+      if (j != CFF_UNDEF_CODE)
 	bytesArray[j] = strings[i];
     }
 
@@ -630,7 +630,7 @@ struct CFF1StringIndex : CFF1Index
 
     unsigned int dataSize = 0;
     for (unsigned int i = 0; i < count; i++)
-      if (sidmap[i] != HB_MAP_VALUE_INVALID)
+      if (sidmap[i] != CFF_UNDEF_CODE)
 	dataSize += length_at (i);
 
     offSize_ = calcOffSize(dataSize);
@@ -1196,7 +1196,7 @@ struct cff1
 
   struct accelerator_t : accelerator_templ_t<cff1_private_dict_opset_t, cff1_private_dict_values_t>
   {
-    HB_INTERNAL bool get_extents (hb_codepoint_t glyph, hb_glyph_extents_t *extents) const;
+    HB_INTERNAL bool get_extents (hb_font_t *font, hb_codepoint_t glyph, hb_glyph_extents_t *extents) const;
     HB_INTERNAL bool get_seac_components (hb_codepoint_t glyph, hb_codepoint_t *base, hb_codepoint_t *accent) const;
   };
 
