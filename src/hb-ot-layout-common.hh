@@ -289,6 +289,9 @@ DECLARE_NULL_NAMESPACE_BYTES (OT, RangeRecord);
 
 struct IndexArray : ArrayOf<Index>
 {
+  bool intersects (const hb_map_t *indexes) const
+  { return hb_any (*this, indexes); }
+
   unsigned int get_indexes (unsigned int start_offset,
 			    unsigned int *_count /* IN/OUT */,
 			    unsigned int *_indexes /* OUT */) const
@@ -681,6 +684,9 @@ struct Feature
 
   const FeatureParams &get_feature_params () const
   { return this+featureParams; }
+
+  bool intersects_lookup_indexes (const hb_map_t *lookup_indexes) const
+  { return lookupIndex.intersects (lookup_indexes); }
 
   bool subset (hb_subset_context_t *c, RecordList_subset_context_t *r) const
   {
@@ -2299,6 +2305,19 @@ struct FeatureTableSubstitutionRecord
 {
   friend struct FeatureTableSubstitution;
 
+  void collect_lookups (const void *base, hb_set_t *lookup_indexes /* OUT */) const
+  {
+    return (base+feature).add_lookup_indexes_to (lookup_indexes);
+  }
+
+  void closure_features (const void *base,
+			 const hb_map_t *lookup_indexes,
+			 hb_set_t       *feature_indexes /* OUT */) const
+  {
+    if ((base+feature).intersects_lookup_indexes (lookup_indexes))
+      feature_indexes->add (featureIndex);
+  }
+
   bool sanitize (hb_sanitize_context_t *c, const void *base) const
   {
     TRACE_SANITIZE (this);
@@ -2326,6 +2345,25 @@ struct FeatureTableSubstitution
     return nullptr;
   }
 
+  void collect_lookups (const hb_set_t *feature_indexes,
+			hb_set_t       *lookup_indexes /* OUT */) const
+  {
+    + hb_iter (substitutions)
+    | hb_filter (feature_indexes, &FeatureTableSubstitutionRecord::featureIndex)
+    | hb_apply ([=] (const FeatureTableSubstitutionRecord& r)
+                {
+                  r.collect_lookups (this, lookup_indexes);
+                })
+    ;
+  }
+
+  void closure_features (const hb_map_t *lookup_indexes,
+			 hb_set_t       *feature_indexes /* OUT */) const
+  {
+    for (const FeatureTableSubstitutionRecord& record : substitutions)
+      record.closure_features (this, lookup_indexes, feature_indexes);
+  }
+
   bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
@@ -2345,6 +2383,20 @@ struct FeatureTableSubstitution
 struct FeatureVariationRecord
 {
   friend struct FeatureVariations;
+
+  void collect_lookups (const void     *base,
+			const hb_set_t *feature_indexes,
+			hb_set_t       *lookup_indexes /* OUT */) const
+  {
+    return (base+substitutions).collect_lookups (feature_indexes, lookup_indexes);
+  }
+
+  void closure_features (const void     *base,
+			 const hb_map_t *lookup_indexes,
+			 hb_set_t       *feature_indexes /* OUT */) const
+  {
+    (base+substitutions).closure_features (lookup_indexes, feature_indexes);
+  }
 
   bool sanitize (hb_sanitize_context_t *c, const void *base) const
   {
@@ -2394,6 +2446,20 @@ struct FeatureVariations
   {
     TRACE_SERIALIZE (this);
     return_trace (c->embed (*this));
+  }
+
+  void collect_lookups (const hb_set_t *feature_indexes,
+			hb_set_t       *lookup_indexes /* OUT */) const
+  {
+    for (const FeatureVariationRecord& r : varRecords)
+      r.collect_lookups (this, feature_indexes, lookup_indexes);
+  }
+
+  void closure_features (const hb_map_t *lookup_indexes,
+			 hb_set_t       *feature_indexes /* OUT */) const
+  {
+    for (const FeatureVariationRecord& record : varRecords)
+      record.closure_features (this, lookup_indexes, feature_indexes);
   }
 
   bool sanitize (hb_sanitize_context_t *c) const
