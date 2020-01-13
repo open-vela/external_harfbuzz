@@ -74,11 +74,6 @@ test_face (hb_face_t *face,
   hb_ot_color_has_png (face);
   hb_blob_destroy (hb_ot_color_glyph_reference_png (font, cp));
 
-  hb_set_t *lookup_indexes = hb_set_create ();
-  hb_set_add (lookup_indexes, 0);
-  hb_ot_layout_closure_lookups (face, HB_OT_TAG_GSUB, set, lookup_indexes);
-  hb_set_destroy (lookup_indexes);
-
   hb_ot_layout_get_baseline (font, HB_OT_LAYOUT_BASELINE_TAG_HANGING, HB_DIRECTION_RTL, HB_SCRIPT_HANGUL, HB_TAG_NONE, NULL);
 
   hb_ot_layout_has_glyph_classes (face);
@@ -113,6 +108,11 @@ test_face (hb_face_t *face,
   hb_ot_var_get_axis_infos (face, 0, NULL, NULL);
   hb_ot_var_normalize_variations (face, NULL, 0, NULL, 0);
   hb_ot_var_normalize_coords (face, 0, NULL, NULL);
+
+  hb_ot_glyph_decompose_funcs_t *funcs = hb_ot_glyph_decompose_funcs_create ();
+  for (unsigned gid = 0; gid < 10; ++gid)
+    hb_ot_glyph_decompose (font, gid, funcs, NULL);
+  hb_ot_glyph_decompose_funcs_destroy (funcs);
 
   hb_set_destroy (set);
   hb_font_destroy (font);
