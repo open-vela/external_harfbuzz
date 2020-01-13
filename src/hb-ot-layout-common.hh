@@ -2299,11 +2299,6 @@ struct FeatureTableSubstitutionRecord
 {
   friend struct FeatureTableSubstitution;
 
-  void collect_lookups (const void *base, hb_set_t *lookup_indexes /* OUT */) const
-  {
-    return (base+feature).add_lookup_indexes_to (lookup_indexes);
-  }
-
   bool sanitize (hb_sanitize_context_t *c, const void *base) const
   {
     TRACE_SANITIZE (this);
@@ -2331,18 +2326,6 @@ struct FeatureTableSubstitution
     return nullptr;
   }
 
-  void collect_lookups (const hb_set_t *feature_indexes,
-			hb_set_t       *lookup_indexes /* OUT */) const
-  {
-    + hb_iter (substitutions)
-    | hb_filter (feature_indexes, &FeatureTableSubstitutionRecord::featureIndex)
-    | hb_apply ([=] (const FeatureTableSubstitutionRecord& r)
-                {
-                  r.collect_lookups (this, lookup_indexes);
-                })
-    ;
-  }
-
   bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
@@ -2362,13 +2345,6 @@ struct FeatureTableSubstitution
 struct FeatureVariationRecord
 {
   friend struct FeatureVariations;
-
-  void collect_lookups (const void     *base,
-			const hb_set_t *feature_indexes,
-			hb_set_t       *lookup_indexes /* OUT */) const
-  {
-    return (base+substitutions).collect_lookups (feature_indexes, lookup_indexes);
-  }
 
   bool sanitize (hb_sanitize_context_t *c, const void *base) const
   {
@@ -2418,13 +2394,6 @@ struct FeatureVariations
   {
     TRACE_SERIALIZE (this);
     return_trace (c->embed (*this));
-  }
-
-  void collect_lookups (const hb_set_t *feature_indexes,
-			hb_set_t       *lookup_indexes /* OUT */) const
-  {
-    for (const FeatureVariationRecord& r : varRecords)
-      r.collect_lookups (this, feature_indexes, lookup_indexes);
   }
 
   bool sanitize (hb_sanitize_context_t *c) const

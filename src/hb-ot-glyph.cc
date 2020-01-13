@@ -1,5 +1,5 @@
 /*
- * Copyright © 2009  Red Hat, Inc.
+ * Copyright © 2019-2020  Ebrahim Byagowi
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -20,31 +20,31 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
  * ON AN "AS IS" BASIS, AND THE COPYRIGHT HOLDER HAS NO OBLIGATION TO
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
- *
- * Red Hat Author(s): Behdad Esfahbod
  */
 
-#ifndef HB_OT_H
-#define HB_OT_H
-#define HB_OT_H_IN
+#include "hb.hh"
 
-#include "hb.h"
+#ifndef HB_NO_OT_GLYPH
 
-#include "hb-ot-color.h"
-#include "hb-ot-deprecated.h"
-#include "hb-ot-font.h"
-#include "hb-ot-glyph.h"
-#include "hb-ot-layout.h"
-#include "hb-ot-math.h"
-#include "hb-ot-meta.h"
-#include "hb-ot-metrics.h"
-#include "hb-ot-name.h"
-#include "hb-ot-shape.h"
-#include "hb-ot-var.h"
+#include "hb-ot.h"
+#include "hb-ot-glyf-table.hh"
+#include "hb-ot-cff1-table.hh"
+#include "hb-ot-cff2-table.hh"
 
-HB_BEGIN_DECLS
+hb_bool_t
+hb_ot_glyph_decompose (hb_font_t *font, hb_codepoint_t glyph,
+		       hb_ot_glyph_decompose_funcs_t *funcs,
+		       void *user_data)
+{
+  if (unlikely (!funcs || glyph >= font->face->get_num_glyphs ())) return false;
 
-HB_END_DECLS
+  if (font->face->table.glyf->get_path (font, glyph, funcs, user_data)) return true;
+#ifndef HB_NO_CFF
+  if (font->face->table.cff1->get_path (font, glyph, funcs, user_data)) return true;
+  if (font->face->table.cff2->get_path (font, glyph, funcs, user_data)) return true;
+#endif
 
-#undef HB_OT_H_IN
-#endif /* HB_OT_H */
+  return false;
+}
+
+#endif
