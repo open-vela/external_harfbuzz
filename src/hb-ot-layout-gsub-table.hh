@@ -56,8 +56,6 @@ struct SingleSubstFormat1
     ;
   }
 
-  void closure_lookups (hb_closure_lookups_context_t *c) const {}
-
   void collect_glyphs (hb_collect_glyphs_context_t *c) const
   {
     if (unlikely (!(this+coverage).add_coverage (c->input))) return;
@@ -155,8 +153,6 @@ struct SingleSubstFormat2
     | hb_sink (c->output)
     ;
   }
-
-  void closure_lookups (hb_closure_lookups_context_t *c) const {}
 
   void collect_glyphs (hb_collect_glyphs_context_t *c) const
   {
@@ -399,8 +395,6 @@ struct MultipleSubstFormat1
     ;
   }
 
-  void closure_lookups (hb_closure_lookups_context_t *c) const {}
-
   void collect_glyphs (hb_collect_glyphs_context_t *c) const
   {
     if (unlikely (!(this+coverage).add_coverage (c->input))) return;
@@ -610,8 +604,6 @@ struct AlternateSubstFormat1
     | hb_apply ([c] (const AlternateSet &_) { _.closure (c); })
     ;
   }
-
-  void closure_lookups (hb_closure_lookups_context_t *c) const {}
 
   void collect_glyphs (hb_collect_glyphs_context_t *c) const
   {
@@ -974,8 +966,6 @@ struct LigatureSubstFormat1
     ;
   }
 
-  void closure_lookups (hb_closure_lookups_context_t *c) const {}
-
   void collect_glyphs (hb_collect_glyphs_context_t *c) const
   {
     if (unlikely (!(this+coverage).add_coverage (c->input))) return;
@@ -1166,8 +1156,6 @@ struct ReverseChainSingleSubstFormat1
     ;
   }
 
-  void closure_lookups (hb_closure_lookups_context_t *c) const {}
-
   void collect_glyphs (hb_collect_glyphs_context_t *c) const
   {
     if (unlikely (!(this+coverage).add_coverage (c->input))) return;
@@ -1324,12 +1312,6 @@ struct SubstLookupSubTable
     }
   }
 
-  bool intersects (const hb_set_t *glyphs, unsigned int lookup_type) const
-  {
-    hb_intersects_context_t c (glyphs);
-    return dispatch (&c, lookup_type);
-  }
-
   protected:
   union {
   SingleSubst			single;
@@ -1387,24 +1369,6 @@ struct SubstLookup : Lookup
 
     c->flush ();
 
-    return ret;
-  }
-
-  hb_closure_lookups_context_t::return_t closure_lookups (hb_closure_lookups_context_t *c, unsigned this_index) const
-  {
-    if (c->is_lookup_visited (this_index))
-      return hb_closure_lookups_context_t::default_return_value ();
-
-    c->set_lookup_visited (this_index);
-    if (!intersects (c->glyphs))
-    {
-      c->set_lookup_inactive (this_index);
-      return hb_closure_lookups_context_t::default_return_value ();
-    }
-
-    c->set_recurse_func (dispatch_closure_lookups_recurse_func);
-
-    hb_closure_lookups_context_t::return_t ret = dispatch (c);
     return ret;
   }
 
@@ -1513,8 +1477,6 @@ struct SubstLookup : Lookup
     return ret;
   }
 
-  HB_INTERNAL static hb_closure_lookups_context_t::return_t dispatch_closure_lookups_recurse_func (hb_closure_lookups_context_t *c, unsigned lookup_index);
-
   template <typename context_t, typename ...Ts>
   typename context_t::return_t dispatch (context_t *c, Ts&&... ds) const
   { return Lookup::dispatch<SubTable> (c, hb_forward<Ts> (ds)...); }
@@ -1539,10 +1501,7 @@ struct GSUB : GSUBGPOS
   { return static_cast<const SubstLookup &> (GSUBGPOS::get_lookup (i)); }
 
   bool subset (hb_subset_context_t *c) const
-  {
-    hb_subset_layout_context_t l (c, tableTag, c->plan->gsub_lookups, c->plan->gsub_features);
-    return GSUBGPOS::subset<SubstLookup> (&l);
-  }
+  { return GSUBGPOS::subset<SubstLookup> (c); }
 
   bool sanitize (hb_sanitize_context_t *c) const
   { return GSUBGPOS::sanitize<SubstLookup> (c); }
@@ -1570,13 +1529,6 @@ template <typename context_t>
   const SubstLookup &l = c->face->table.GSUB.get_relaxed ()->table->get_lookup (lookup_index);
   return l.dispatch (c);
 }
-
-/*static*/ inline hb_closure_lookups_context_t::return_t SubstLookup::dispatch_closure_lookups_recurse_func (hb_closure_lookups_context_t *c, unsigned this_index)
-{
-  const SubstLookup &l = c->face->table.GSUB.get_relaxed ()->table->get_lookup (this_index);
-  return l.closure_lookups (c, this_index);
-}
-
 /*static*/ bool SubstLookup::apply_recurse_func (hb_ot_apply_context_t *c, unsigned int lookup_index)
 {
   const SubstLookup &l = c->face->table.GSUB.get_relaxed ()->table->get_lookup (lookup_index);

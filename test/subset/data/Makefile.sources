@@ -10,7 +10,6 @@ TESTS = \
 	tests/layout.gpos3.tests \
 	tests/layout.gsub6.tests \
 	tests/cmap14.tests \
-	tests/sbix.tests \
 	$(NULL)
 
 XFAIL_TESTS = \

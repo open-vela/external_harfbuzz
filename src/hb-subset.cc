@@ -37,7 +37,6 @@
 #include "hb-ot-hhea-table.hh"
 #include "hb-ot-hmtx-table.hh"
 #include "hb-ot-maxp-table.hh"
-#include "hb-ot-color-sbix-table.hh"
 #include "hb-ot-os2-table.hh"
 #include "hb-ot-post-table.hh"
 #include "hb-ot-cff1-table.hh"
@@ -187,9 +186,6 @@ _subset_table (hb_subset_plan_t *plan,
       break;
     case HB_OT_TAG_maxp:
       result = _subset2<const OT::maxp> (plan);
-      break;
-    case HB_OT_TAG_sbix:
-      result = _subset2<const OT::sbix> (plan);
       break;
     case HB_OT_TAG_loca:
       DEBUG_MSG(SUBSET, nullptr, "skip loca handled by glyf");
