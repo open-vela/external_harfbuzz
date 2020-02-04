@@ -13,7 +13,6 @@ TESTS = \
 	tests/cmap14.tests \
 	tests/sbix.tests \
 	tests/colr.tests \
-	tests/cbdt.tests \
 	$(NULL)
 
 XFAIL_TESTS = \

@@ -21,7 +21,6 @@ EXTRA_DIST += \
 	expected/cmap14 \
 	expected/sbix \
 	expected/colr \
-	expected/cbdt \
 	fonts \
 	profiles \
 	$(NULL)

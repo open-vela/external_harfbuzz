@@ -57,13 +57,13 @@ struct head
   bool serialize (hb_serialize_context_t *c) const
   {
     TRACE_SERIALIZE (this);
-    return_trace ((bool) c->embed(this));
+    return_trace ((bool) c->embed (this));
   }
 
   bool subset (hb_subset_context_t *c) const
   {
     TRACE_SUBSET (this);
-    return_trace (serialize(c->serializer));
+    return_trace (serialize (c->serializer));
   }
 
   enum mac_style_flag_t {
