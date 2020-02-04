@@ -70,7 +70,7 @@ _plan_estimate_subset_table_size (hb_subset_plan_t *plan,
 
 template<typename TableType>
 static bool
-_subset2 (hb_subset_plan_t *plan)
+_subset (hb_subset_plan_t *plan)
 {
   bool result = false;
   hb_blob_t *source_blob = hb_sanitize_context_t ().reference_table<TableType> (plan->source);
@@ -134,26 +134,6 @@ _subset2 (hb_subset_plan_t *plan)
   return result;
 }
 
-template<typename TableType>
-static bool
-_subset (hb_subset_plan_t *plan)
-{
-  hb_blob_t *source_blob = hb_sanitize_context_t ().reference_table<TableType> (plan->source);
-  const TableType *table = source_blob->as<TableType> ();
-
-  hb_tag_t tag = TableType::tableTag;
-  hb_bool_t result = false;
-  if (source_blob->data)
-    result = table->subset (plan);
-  else
-    DEBUG_MSG(SUBSET, nullptr, "OT::%c%c%c%c::subset sanitize failed on source table.", HB_UNTAG (tag));
-
-  hb_blob_destroy (source_blob);
-  DEBUG_MSG(SUBSET, nullptr, "OT::%c%c%c%c::subset %s", HB_UNTAG (tag), result ? "success" : "FAILED!");
-  return result;
-}
-
-
 static bool
 _is_table_present (hb_face_t *source,
                    hb_tag_t tag)
@@ -209,13 +189,13 @@ _subset_table (hb_subset_plan_t *plan,
   bool result = true;
   switch (tag) {
     case HB_OT_TAG_glyf:
-      result = _subset2<const OT::glyf> (plan);
+      result = _subset<const OT::glyf> (plan);
       break;
     case HB_OT_TAG_hdmx:
-      result = _subset2<const OT::hdmx> (plan);
+      result = _subset<const OT::hdmx> (plan);
       break;
     case HB_OT_TAG_name:
-      result = _subset2<const OT::name> (plan);
+      result = _subset<const OT::name> (plan);
       break;
     case HB_OT_TAG_head: {
       if (_is_table_present (plan->source, HB_OT_TAG_glyf) && !_should_drop_table (plan, HB_OT_TAG_glyf))
@@ -230,34 +210,34 @@ _subset_table (hb_subset_plan_t *plan,
       DEBUG_MSG(SUBSET, nullptr, "skip hhea handled by hmtx");
       return true;
     case HB_OT_TAG_hmtx:
-      result = _subset2<const OT::hmtx> (plan);
+      result = _subset<const OT::hmtx> (plan);
       break;
     case HB_OT_TAG_vhea:
       DEBUG_MSG(SUBSET, nullptr, "skip vhea handled by vmtx");
       return true;
     case HB_OT_TAG_vmtx:
-      result = _subset2<const OT::vmtx> (plan);
+      result = _subset<const OT::vmtx> (plan);
       break;
     case HB_OT_TAG_maxp:
-      result = _subset2<const OT::maxp> (plan);
+      result = _subset<const OT::maxp> (plan);
       break;
     case HB_OT_TAG_sbix:
-      result = _subset2<const OT::sbix> (plan);
+      result = _subset<const OT::sbix> (plan);
       break;
     case HB_OT_TAG_loca:
       DEBUG_MSG(SUBSET, nullptr, "skip loca handled by glyf");
       return true;
     case HB_OT_TAG_cmap:
-      result = _subset2<const OT::cmap> (plan);
+      result = _subset<const OT::cmap> (plan);
       break;
     case HB_OT_TAG_OS2:
-      result = _subset2<const OT::OS2> (plan);
+      result = _subset<const OT::OS2> (plan);
       break;
     case HB_OT_TAG_post:
-      result = _subset2<const OT::post> (plan);
+      result = _subset<const OT::post> (plan);
       break;
     case HB_OT_TAG_COLR:
-      result = _subset2<const OT::COLR> (plan);
+      result = _subset<const OT::COLR> (plan);
       break;
     case HB_OT_TAG_CBLC:
       result = _subset2<const OT::CBLC> (plan);
@@ -268,34 +248,34 @@ _subset_table (hb_subset_plan_t *plan,
 
 #ifndef HB_NO_SUBSET_CFF
     case HB_OT_TAG_cff1:
-      result = _subset2<const OT::cff1> (plan);
+      result = _subset<const OT::cff1> (plan);
       break;
     case HB_OT_TAG_cff2:
-      result = _subset2<const OT::cff2> (plan);
+      result = _subset<const OT::cff2> (plan);
       break;
     case HB_OT_TAG_VORG:
-      result = _subset2<const OT::VORG> (plan);
+      result = _subset<const OT::VORG> (plan);
       break;
 #endif
 
 #ifndef HB_NO_SUBSET_LAYOUT
     case HB_OT_TAG_GDEF:
-      result = _subset2<const OT::GDEF> (plan);
+      result = _subset<const OT::GDEF> (plan);
       break;
     case HB_OT_TAG_GSUB:
-      result = _subset2<const OT::GSUB> (plan);
+      result = _subset<const OT::GSUB> (plan);
       break;
     case HB_OT_TAG_GPOS:
-      result = _subset2<const OT::GPOS> (plan);
+      result = _subset<const OT::GPOS> (plan);
       break;
     case HB_OT_TAG_gvar:
-      result = _subset2<const OT::gvar> (plan);
+      result = _subset<const OT::gvar> (plan);
       break;
     case HB_OT_TAG_HVAR:
-      result = _subset2<const OT::HVAR> (plan);
+      result = _subset<const OT::HVAR> (plan);
       break;
     case HB_OT_TAG_VVAR:
-      result = _subset2<const OT::VVAR> (plan);
+      result = _subset<const OT::VVAR> (plan);
       break;
 #endif
 
