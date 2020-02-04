@@ -45,7 +45,6 @@
 #include "hb-ot-cff2-table.hh"
 #include "hb-ot-vorg-table.hh"
 #include "hb-ot-name-table.hh"
-#include "hb-ot-color-cbdt-table.hh"
 #include "hb-ot-layout-gsub-table.hh"
 #include "hb-ot-layout-gpos-table.hh"
 #include "hb-ot-var-gvar-table.hh"
@@ -203,7 +202,7 @@ _subset_table (hb_subset_plan_t *plan,
         DEBUG_MSG(SUBSET, nullptr, "skip head, handled by glyf");
         return true;
       }
-      result = _subset2<const OT::head> (plan);
+      result = _subset<const OT::head> (plan);
       break;
     }
     case HB_OT_TAG_hhea:
@@ -239,12 +238,6 @@ _subset_table (hb_subset_plan_t *plan,
     case HB_OT_TAG_COLR:
       result = _subset<const OT::COLR> (plan);
       break;
-    case HB_OT_TAG_CBLC:
-      result = _subset2<const OT::CBLC> (plan);
-      break;
-    case HB_OT_TAG_CBDT:
-      DEBUG_MSG(SUBSET, nullptr, "skip CBDT handled by CBLC");
-      return true;
 
 #ifndef HB_NO_SUBSET_CFF
     case HB_OT_TAG_cff1:
