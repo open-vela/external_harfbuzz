@@ -5,7 +5,7 @@ EXTRA_DIST =
 SUBDIRS = api shaping fuzzing subset
 
 EXTRA_DIST += \
-	meson.build \
+	CMakeLists.txt \
 	$(NULL)
 
 # Convenience targets:

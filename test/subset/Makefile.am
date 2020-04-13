@@ -6,12 +6,11 @@ CLEANFILES =
 SUBDIRS = data
 
 # Convenience targets:
-lib: libs # Always build subsetter lib in this subdir
-libs:
+lib:
 	@$(MAKE) $(AM_MAKEFLAGS) -C $(top_builddir)/src libs
 
 EXTRA_DIST += \
-	meson.build \
+	CMakeLists.txt \
 	run-tests.py \
 	subset_test_suite.py \
 	$(NULL)

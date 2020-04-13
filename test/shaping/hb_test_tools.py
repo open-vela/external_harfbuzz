@@ -1,13 +1,91 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
-import sys, os, re, difflib, unicodedata, errno, cgi, itertools
+from __future__ import print_function, division, absolute_import
+
+import sys, os, re, difflib, unicodedata, errno, cgi
 from itertools import *
+try:
+	import unicodedata2 as unicodedata
+except Exception:
+	pass
 
 diff_symbols = "-+=*&^%$#@!~/"
 diff_colors = ['red', 'green', 'blue']
 
 def codepoints(s):
 	return (ord (u) for u in s)
+
+try:
+	unichr = unichr
+
+	if sys.maxunicode < 0x10FFFF:
+		# workarounds for Python 2 "narrow" builds with UCS2-only support.
+
+		_narrow_unichr = unichr
+
+		def unichr(i):
+			"""
+			Return the unicode character whose Unicode code is the integer 'i'.
+			The valid range is 0 to 0x10FFFF inclusive.
+
+			>>> _narrow_unichr(0xFFFF + 1)
+			Traceback (most recent call last):
+			  File "<stdin>", line 1, in ?
+			ValueError: unichr() arg not in range(0x10000) (narrow Python build)
+			>>> unichr(0xFFFF + 1) == u'\U00010000'
+			True
+			>>> unichr(1114111) == u'\U0010FFFF'
+			True
+			>>> unichr(0x10FFFF + 1)
+			Traceback (most recent call last):
+			  File "<stdin>", line 1, in ?
+			ValueError: unichr() arg not in range(0x110000)
+			"""
+			try:
+				return _narrow_unichr(i)
+			except ValueError:
+				try:
+					padded_hex_str = hex(i)[2:].zfill(8)
+					escape_str = "\\U" + padded_hex_str
+					return escape_str.decode("unicode-escape")
+				except UnicodeDecodeError:
+					raise ValueError('unichr() arg not in range(0x110000)')
+
+		def codepoints(s):
+			high_surrogate = None
+			for u in s:
+				cp = ord (u)
+				if 0xDC00 <= cp <= 0xDFFF:
+					if high_surrogate:
+						yield 0x10000 + (high_surrogate - 0xD800) * 0x400 + (cp - 0xDC00)
+						high_surrogate = None
+					else:
+						yield 0xFFFD
+				else:
+					if high_surrogate:
+						yield 0xFFFD
+						high_surrogate = None
+					if 0xD800 <= cp <= 0xDBFF:
+						high_surrogate = cp
+					else:
+						yield cp
+						high_surrogate = None
+			if high_surrogate:
+				yield 0xFFFD
+
+except NameError:
+	unichr = chr
+
+try:
+	unicode = unicode
+except NameError:
+	unicode = str
+
+def tounicode(s, encoding='ascii', errors='strict'):
+	if not isinstance(s, unicode):
+		return s.decode(encoding, errors)
+	else:
+		return s
 
 class ColorFormatter:
 
@@ -135,7 +213,7 @@ class ZipDiffer:
 	def diff_files (files, symbols=diff_symbols):
 		files = tuple (files) # in case it's a generator, copy it
 		try:
-			for lines in itertools.zip_longest (*files):
+			for lines in izip_longest (*files):
 				if all (lines[0] == line for line in lines[1:]):
 					sys.stdout.writelines ([" ", lines[0]])
 					continue
@@ -198,7 +276,7 @@ class Stats:
 		   Self is Stats for sample.
 		   Returns larger absolute value if sample is highly unlikely to be random.
 		   Anything outside of -3..+3 is very unlikely to be random.
-		   See: https://en.wikipedia.org/wiki/Standard_score"""
+		   See: http://en.wikipedia.org/wiki/Standard_score"""
 
 		return (self.mean () - population.mean ()) / population.stddev ()
 
@@ -382,7 +460,7 @@ class Unicode:
 
 	@staticmethod
 	def decode (s):
-		return ','.join ("U+%04X" % cp for cp in codepoints (s))
+		return u','.join ("U+%04X" % cp for cp in codepoints (tounicode (s, 'utf-8')))
 
 	@staticmethod
 	def parse (s):
@@ -392,7 +470,9 @@ class Unicode:
 
 	@staticmethod
 	def encode (s):
-		return ''.join (chr (x) for x in Unicode.parse (s))
+		s = u''.join (unichr (x) for x in Unicode.parse (s))
+		if sys.version_info[0] == 2: s = s.encode ('utf-8')
+		return s
 
 	shorthands = {
 		"ZERO WIDTH NON-JOINER": "ZWNJ",
@@ -428,8 +508,8 @@ class Unicode:
 	def pretty_names (s):
 		s = re.sub (r"[<+>\\uU]", " ", s)
 		s = re.sub (r"0[xX]", " ", s)
-		s = [chr (int (x, 16)) for x in re.split ('[, \n]', s) if len (x)]
-		return ' + '.join (Unicode.pretty_name (x) for x in s)
+		s = [unichr (int (x, 16)) for x in re.split ('[, \n]', s) if len (x)]
+		return u' + '.join (Unicode.pretty_name (x) for x in s).encode ('utf-8')
 
 
 class FileHelpers:

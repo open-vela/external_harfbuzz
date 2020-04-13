@@ -26,50 +26,28 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#include "hb.hh"
-
-#ifndef HB_NO_AAT_SHAPE
-
 #include "hb-aat-map.hh"
 
 #include "hb-aat-layout.hh"
-#include "hb-aat-layout-feat-table.hh"
 
 
-void hb_aat_map_builder_t::add_feature (hb_tag_t tag, unsigned value)
+void hb_aat_map_builder_t::add_feature (hb_tag_t tag,
+					unsigned int value)
 {
-  if (!face->table.feat->has_data ()) return;
-
   if (tag == HB_TAG ('a','a','l','t'))
   {
-    if (!face->table.feat->exposes_feature (HB_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_ALTERNATIVES))
-      return;
     feature_info_t *info = features.push();
     info->type = HB_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_ALTERNATIVES;
     info->setting = (hb_aat_layout_feature_selector_t) value;
-    info->seq = features.length;
     return;
   }
 
   const hb_aat_feature_mapping_t *mapping = hb_aat_layout_find_feature_mapping (tag);
   if (!mapping) return;
-  if (!face->table.feat->exposes_feature (mapping->aatFeatureType))
-  {
-    /* Special case: Chain::compile_flags will fall back to the deprecated version of
-     * small-caps if necessary, so we need to check for that possibility.
-     * https://github.com/harfbuzz/harfbuzz/issues/2307 */
-    if (mapping->aatFeatureType == HB_AAT_LAYOUT_FEATURE_TYPE_LOWER_CASE &&
-        mapping->selectorToEnable == HB_AAT_LAYOUT_FEATURE_SELECTOR_LOWER_CASE_SMALL_CAPS)
-    {
-      if (!face->table.feat->exposes_feature (HB_AAT_LAYOUT_FEATURE_TYPE_LETTER_CASE)) return;
-    }
-    else return;
-  }
 
   feature_info_t *info = features.push();
   info->type = mapping->aatFeatureType;
   info->setting = value ? mapping->selectorToEnable : mapping->selectorToDisable;
-  info->seq = features.length;
 }
 
 void
@@ -88,6 +66,3 @@ hb_aat_map_builder_t::compile (hb_aat_map_t  &m)
 
   hb_aat_layout_compile_map (this, &m);
 }
-
-
-#endif
