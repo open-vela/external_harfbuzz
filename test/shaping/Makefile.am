@@ -15,7 +15,7 @@ libs:
 
 EXTRA_DIST += \
 	README.md \
-	meson.build \
+	CMakeLists.txt \
 	hb-diff \
 	hb-diff-colorize \
 	hb-diff-filter-failures \

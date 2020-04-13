@@ -24,15 +24,13 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#include "hb.hh"
+#include "hb-open-type.hh"
 
-#ifndef HB_NO_VAR
-
-#include "hb-ot-var.h"
-
+#include "hb-ot-face.hh"
 #include "hb-ot-var-avar-table.hh"
 #include "hb-ot-var-fvar-table.hh"
 #include "hb-ot-var-mvar-table.hh"
+#include "hb-ot-var.h"
 
 
 /**
@@ -77,7 +75,6 @@ hb_ot_var_get_axis_count (hb_face_t *face)
   return face->table.fvar->get_axis_count ();
 }
 
-#ifndef HB_DISABLE_DEPRECATED
 /**
  * hb_ot_var_get_axes:
  *
@@ -107,7 +104,6 @@ hb_ot_var_find_axis (hb_face_t        *face,
 {
   return face->table.fvar->find_axis_deprecated (axis_tag, axis_index, axis_info);
 }
-#endif
 
 /**
  * hb_ot_var_get_axis_infos:
@@ -215,6 +211,3 @@ hb_ot_var_normalize_coords (hb_face_t    *face,
 
   face->table.avar->map_coords (normalized_coords, coords_length);
 }
-
-
-#endif

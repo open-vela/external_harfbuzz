@@ -154,9 +154,7 @@ hb_shape_full (hb_font_t          *font,
  *
  * Shapes @buffer using @font turning its Unicode characters content to
  * positioned glyphs. If @features is not %NULL, it will be used to control the
- * features applied during shaping. If two @features have the same tag but
- * overlapping ranges the value of the feature with the higher index takes
- * precedence.
+ * features applied during shaping.
  *
  * Since: 0.9.2
  **/

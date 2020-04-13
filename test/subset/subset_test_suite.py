@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import io
 import os
@@ -12,10 +12,7 @@ class Test:
 		self.subset = subset
 
 	def unicodes(self):
-		if self.subset == '*':
-			return self.subset[0]
-		else:
-			return ",".join("%X" % ord(c) for (i, c) in enumerate(self.subset))
+		return ",".join("%X" % ord(c) for (i, c) in enumerate(self.subset))
 
 	def get_profile_flags(self):
 		with io.open(self.profile_path, mode="r", encoding="utf-8") as f:
@@ -26,12 +23,7 @@ class Test:
 		font_base_name_parts = os.path.splitext(font_base_name)
 		profile_name = os.path.splitext(os.path.basename(self.profile_path))[0]
 
-		if self.unicodes() == "*":
-			return "%s.%s.retain-all-codepoint%s" % (font_base_name_parts[0],
-				       profile_name,
-				       font_base_name_parts[1])
-		else:
-			return "%s.%s.%s%s" % (font_base_name_parts[0],
+		return "%s.%s.%s%s" % (font_base_name_parts[0],
 				       profile_name,
 				       self.unicodes(),
 				       font_base_name_parts[1])
@@ -47,9 +39,9 @@ class SubsetTestSuite:
 
 	def __init__(self, test_path, definition):
 		self.test_path = test_path
-		self.fonts = []
-		self.profiles = []
-		self.subsets = []
+		self.fonts = set()
+		self.profiles = set()
+		self.subsets = set()
 		self._parse(definition)
 
 	def get_output_directory(self):
@@ -95,6 +87,6 @@ class SubsetTestSuite:
 			if line in destinations:
 				current_destination = destinations[line]
 			elif current_destination is not None:
-				current_destination.append(line)
+				current_destination.add(line)
 			else:
 				raise Exception("Failed to parse test suite file.")

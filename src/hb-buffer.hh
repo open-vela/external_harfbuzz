@@ -124,11 +124,9 @@ struct hb_buffer_t
   unsigned int context_len[2];
 
   /* Debugging API */
-#ifndef HB_NO_BUFFER_MESSAGE
   hb_buffer_message_func_t message_func;
   void *message_data;
   hb_destroy_func_t message_destroy;
-#endif
 
   /* Internal debugging. */
   /* The bits here reflect current allocations of the bytes in glyph_info_t's var1 and var2. */
@@ -349,19 +347,9 @@ struct hb_buffer_t
 
   HB_INTERNAL void sort (unsigned int start, unsigned int end, int(*compar)(const hb_glyph_info_t *, const hb_glyph_info_t *));
 
-  bool messaging ()
-  {
-#ifdef HB_NO_BUFFER_MESSAGE
-    return false;
-#else
-    return unlikely (message_func);
-#endif
-  }
+  bool messaging () { return unlikely (message_func); }
   bool message (hb_font_t *font, const char *fmt, ...) HB_PRINTF_FUNC(3, 4)
   {
-#ifdef HB_NO_BUFFER_MESSAGE
-   return true;
-#else
     if (!messaging ())
       return true;
     va_list ap;
@@ -369,7 +357,6 @@ struct hb_buffer_t
     bool ret = message_impl (font, fmt, ap);
     va_end (ap);
     return ret;
-#endif
   }
   HB_INTERNAL bool message_impl (hb_font_t *font, const char *fmt, va_list ap) HB_PRINTF_FUNC(3, 0);
 
@@ -386,13 +373,13 @@ struct hb_buffer_t
     inf.cluster = cluster;
   }
 
-  unsigned int
+  int
   _unsafe_to_break_find_min_cluster (const hb_glyph_info_t *infos,
 				     unsigned int start, unsigned int end,
 				     unsigned int cluster) const
   {
     for (unsigned int i = start; i < end; i++)
-      cluster = hb_min (cluster, infos[i].cluster);
+      cluster = MIN<unsigned int> (cluster, infos[i].cluster);
     return cluster;
   }
   void
@@ -408,7 +395,8 @@ struct hb_buffer_t
       }
   }
 
-  void unsafe_to_break_all () { unsafe_to_break_impl (0, len); }
+  void unsafe_to_break_all ()
+  { unsafe_to_break_impl (0, len); }
   void safe_to_break_all ()
   {
     for (unsigned int i = 0; i < len; i++)

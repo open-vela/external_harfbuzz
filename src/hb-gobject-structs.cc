@@ -26,17 +26,24 @@
 
 #include "hb.hh"
 
-#ifdef HAVE_GOBJECT
-
 
 /**
  * SECTION:hb-gobject
  * @title: hb-gobject
- * @short_description: GObject integration
+ * @short_description: GObject integration support
  * @include: hb-gobject.h
  *
- * Functions for using HarfBuzz with the GObject library to provide
+ * Support for using HarfBuzz with the GObject library to provide
  * type data.
+ *
+ * The types and functions listed here are solely a linkage between
+ * HarfBuzz's public data types and the GTypes used by the GObject framework.
+ * HarfBuzz uses GObject introspection to generate its Python bindings 
+ * (and potentially other language bindings); client programs should never need
+ * to access the GObject-integration mechanics.
+ *
+ * For client programs using the GNOME and GTK software stack, please see the
+ * GLib and FreeType integration pages.
  **/
 
 
@@ -96,6 +103,3 @@ HB_DEFINE_VALUE_TYPE (user_data_key)
 
 HB_DEFINE_VALUE_TYPE (ot_math_glyph_variant)
 HB_DEFINE_VALUE_TYPE (ot_math_glyph_part)
-
-
-#endif
