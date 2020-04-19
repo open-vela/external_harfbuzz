@@ -27,6 +27,8 @@
 #define HB_CFF_INTERP_DICT_COMMON_HH
 
 #include "hb-cff-interp-common.hh"
+#include <math.h>
+#include <float.h>
 
 namespace CFF {
 
@@ -56,6 +58,19 @@ struct top_dict_values_t : dict_values_t<OPSTR>
   }
   void fini () { dict_values_t<OPSTR>::fini (); }
 
+  unsigned int calculate_serialized_op_size (const OPSTR& opstr) const
+  {
+    switch (opstr.op)
+    {
+      case OpCode_CharStrings:
+      case OpCode_FDArray:
+	return OpCode_Size (OpCode_longintdict) + 4 + OpCode_Size (opstr.op);
+
+      default:
+	return opstr.str.length;
+    }
+  }
+
   unsigned int  charStringsOffset;
   unsigned int  FDArrayOffset;
 };
@@ -79,52 +94,130 @@ struct dict_opset_t : opset_t<number_t>
     }
   }
 
-  /* Turns CFF's BCD format into strtod understandable string */
   static double parse_bcd (byte_str_ref_t& str_ref)
   {
-    if (unlikely (str_ref.in_error ())) return .0;
-
+    bool    neg = false;
+    double  int_part = 0;
+    uint64_t frac_part = 0;
+    uint32_t  frac_count = 0;
+    bool    exp_neg = false;
+    uint32_t  exp_part = 0;
+    bool    exp_overflow = false;
+    enum Part { INT_PART=0, FRAC_PART, EXP_PART } part = INT_PART;
     enum Nibble { DECIMAL=10, EXP_POS, EXP_NEG, RESERVED, NEG, END };
+    const uint64_t MAX_FRACT = 0xFFFFFFFFFFFFFull; /* 1^52-1 */
+    const uint32_t MAX_EXP = 0x7FFu; /* 1^11-1 */
 
-    char buf[32];
+    double  value = 0.0;
     unsigned char byte = 0;
-    for (unsigned i = 0, count = 0; count < ARRAY_LENGTH (buf); ++i, ++count)
+    for (uint32_t i = 0;; i++)
     {
-      unsigned nibble;
-      if (!(i & 1))
+      char d;
+      if ((i & 1) == 0)
       {
-	if (unlikely (!str_ref.avail ())) break;
-
+	if (!str_ref.avail ())
+	{
+	  str_ref.set_error ();
+	  return 0.0;
+	}
 	byte = str_ref[0];
 	str_ref.inc ();
-	nibble = byte >> 4;
+	d = byte >> 4;
       }
       else
-	nibble = byte & 0x0F;
+	d = byte & 0x0F;
 
-      if (unlikely (nibble == RESERVED)) break;
-      else if (nibble == END)
+      switch (d)
       {
-	const char *p = buf;
-	double pv;
-	if (unlikely (!hb_parse_double (&p, p + count, &pv, true/* whole buffer */)))
+	case RESERVED:
+	  str_ref.set_error ();
+	  return value;
+
+	case END:
+	  value = (double)(neg? -int_part: int_part);
+	  if (frac_count > 0)
+	  {
+	    double frac = (frac_part / pow (10.0, (double)frac_count));
+	    if (neg) frac = -frac;
+	    value += frac;
+	  }
+	  if (unlikely (exp_overflow))
+	  {
+	    if (value == 0.0)
+	      return value;
+	    if (exp_neg)
+	      return neg? -DBL_MIN: DBL_MIN;
+	    else
+	      return neg? -DBL_MAX: DBL_MAX;
+	  }
+	  if (exp_part != 0)
+	  {
+	    if (exp_neg)
+	      value /= pow (10.0, (double)exp_part);
+	    else
+	      value *= pow (10.0, (double)exp_part);
+	  }
+	  return value;
+
+	case NEG:
+	  if (i != 0)
+	  {
+	    str_ref.set_error ();
+	    return 0.0;
+	  }
+	  neg = true;
 	  break;
-	return pv;
-      }
-      else
-      {
-	buf[count] = "0123456789.EE?-?"[nibble];
-	if (nibble == EXP_NEG)
-	{
-	  ++count;
-	  if (unlikely (count == ARRAY_LENGTH (buf))) break;
-	  buf[count] = '-';
-	}
+
+	case DECIMAL:
+	  if (part != INT_PART)
+	  {
+	    str_ref.set_error ();
+	    return value;
+	  }
+	  part = FRAC_PART;
+	  break;
+
+	case EXP_NEG:
+	  exp_neg = true;
+	  HB_FALLTHROUGH;
+
+	case EXP_POS:
+	  if (part == EXP_PART)
+	  {
+	    str_ref.set_error ();
+	    return value;
+	  }
+	  part = EXP_PART;
+	  break;
+
+	default:
+	  switch (part) {
+	    default:
+	    case INT_PART:
+	      int_part = (int_part * 10) + d;
+	      break;
+
+	    case FRAC_PART:
+	      if (likely (frac_part <= MAX_FRACT / 10))
+	      {
+		frac_part = (frac_part * 10) + (unsigned)d;
+		frac_count++;
+	      }
+	      break;
+
+	    case EXP_PART:
+	      if (likely (exp_part * 10 + d <= MAX_EXP))
+	      {
+	      	exp_part = (exp_part * 10) + d;
+	      }
+	      else
+	      	exp_overflow = true;
+	      break;
+	  }
       }
     }
 
-    str_ref.set_error ();
-    return .0;
+    return value;
   }
 
   static bool is_hint_op (op_code_t op)

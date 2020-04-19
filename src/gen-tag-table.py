@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python
 
 """Generator of the mapping from OpenType tags to BCP 47 tags and vice
 versa.
@@ -18,11 +18,18 @@ first BCP 47 tag happens to be the chosen disambiguated tag. In that
 case, the fallback behavior will choose the right tag anyway.
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import collections
-from html.parser import HTMLParser
-def write (s):
-	sys.stdout.flush ()
-	sys.stdout.buffer.write (s.encode ('utf-8'))
+try:
+	from HTMLParser import HTMLParser
+	def write (s):
+		print (s.encode ('utf-8'), end='')
+except ImportError:
+	from html.parser import HTMLParser
+	def write (s):
+		sys.stdout.flush ()
+		sys.stdout.buffer.write (s.encode ('utf-8'))
 import io
 import itertools
 import re
@@ -30,16 +37,16 @@ import sys
 import unicodedata
 
 if len (sys.argv) != 3:
-	print ('''usage: ./gen-tag-table.py languagetags language-subtag-registry
-
-Input files, as of Unicode 12:
-* https://docs.microsoft.com/en-us/typography/opentype/spec/languagetags
-* https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry''', file=sys.stderr)
+	print ('usage: ./gen-tag-table.py languagetags language-subtag-registry', file=sys.stderr)
 	sys.exit (1)
 
-from html import unescape
-def html_unescape (parser, entity):
-	return unescape (entity)
+try:
+	from html import unescape
+	def html_unescape (parser, entity):
+		return unescape (entity)
+except ImportError:
+	def html_unescape (parser, entity):
+		return parser.unescape (entity)
 
 def expect (condition, message=None):
 	if not condition:
@@ -47,7 +54,7 @@ def expect (condition, message=None):
 			raise AssertionError
 		raise AssertionError (message)
 
-# from https://www-01.sil.org/iso639-3/iso-639-3.tab
+# from http://www-01.sil.org/iso639-3/iso-639-3.tab
 ISO_639_3_TO_1 = {
 	'aar': 'aa',
 	'abk': 'ab',
@@ -747,7 +754,7 @@ ot.add_language ('und-Syre', 'SYRE')
 ot.add_language ('und-Syrj', 'SYRJ')
 ot.add_language ('und-Syrn', 'SYRN')
 
-bcp_47.names['xst'] = "Silt'e"
+bcp_47.names['xst'] = u"Silt'e"
 bcp_47.scopes['xst'] = ' (retired code)'
 bcp_47.macrolanguages['xst'] = {'stv', 'wle'}
 
@@ -854,7 +861,7 @@ def hb_tag (tag):
 	Returns:
 		A snippet of C++ representing ``tag``.
 	"""
-	return "HB_TAG('%s','%s','%s','%s')" % tuple (('%-4s' % tag)[:4])
+	return u"HB_TAG('%s','%s','%s','%s')" % tuple (('%-4s' % tag)[:4])
 
 def get_variant_set (name):
 	"""Return a set of variant language names from a name.
@@ -866,7 +873,7 @@ def get_variant_set (name):
 	Returns:
 		A set of normalized language names.
 	"""
-	return set (unicodedata.normalize ('NFD', n.replace ('\u2019', "'"))
+	return set (unicodedata.normalize ('NFD', n.replace ('\u2019', u"'"))
 			.encode ('ASCII', 'ignore')
 			.strip ()
 			for n in re.split ('[\n(),]', name) if n)
@@ -888,18 +895,20 @@ def language_name_intersection (a, b):
 def get_matching_language_name (intersection, candidates):
 	return next (iter (c for c in candidates if not intersection.isdisjoint (get_variant_set (c))))
 
-def same_tag (bcp_47_tag, ot_tags):
-	return len (bcp_47_tag) == 3 and len (ot_tags) == 1 and bcp_47_tag == ot_tags[0].lower ()
-
+maximum_tags = 0
 for language, tags in sorted (ot.from_bcp_47.items ()):
 	if language == '' or '-' in language:
 		continue
-	commented_out = same_tag (language, tags)
+	print ('  {\"%s\",\t{' % language, end='')
+	maximum_tags = max (maximum_tags, len (tags))
+	tag_count = len (tags)
 	for i, tag in enumerate (tags, start=1):
-		print ('%s{\"%s\",\t%s},' % ('/*' if commented_out else '  ', language, hb_tag (tag)), end='')
-		if commented_out:
-			print ('*/', end='')
-		print ('\t/* ', end='')
+		if i > 1:
+			print ('\t\t ', end='')
+		print (hb_tag (tag), end='')
+		if i == tag_count:
+			print ('}}', end='')
+		print (',\t/* ', end='')
 		bcp_47_name = bcp_47.names.get (language, '')
 		bcp_47_name_candidates = bcp_47_name.split ('\n')
 		intersection = language_name_intersection (bcp_47_name, ot.names[tag])
@@ -913,6 +922,8 @@ for language, tags in sorted (ot.from_bcp_47.items ()):
 		print (' */')
 
 print ('};')
+print ()
+print ('static_assert (HB_OT_MAX_TAGS_PER_LANGUAGE == %iu, "");' % maximum_tags)
 print ()
 
 print ('/**')
@@ -1040,8 +1051,7 @@ print (' * @tag: A language tag.')
 print (' *')
 print (' * Converts @tag to a BCP 47 language tag if it is ambiguous (it corresponds to')
 print (' * many language tags) and the best tag is not the alphabetically first, or if')
-print (' * the best tag consists of multiple subtags, or if the best tag does not appear')
-print (' * in #ot_languages.')
+print (' * the best tag consists of multiple subtags.')
 print (' *')
 print (' * Return value: The #hb_language_t corresponding to the BCP 47 language tag,')
 print (' * or #HB_LANGUAGE_INVALID if @tag is not ambiguous.')
@@ -1092,8 +1102,7 @@ def verify_disambiguation_dict ():
 						'%s is not a valid disambiguation for %s' % (disambiguation[ot_tag], ot_tag))
 			elif ot_tag not in disambiguation:
 				disambiguation[ot_tag] = macrolanguages[0]
-			different_primary_tags = sorted (t for t in primary_tags if not same_tag (t, ot.from_bcp_47.get (t)))
-			if different_primary_tags and disambiguation[ot_tag] == different_primary_tags[0] and '-' not in disambiguation[ot_tag]:
+			if disambiguation[ot_tag] == sorted (primary_tags)[0] and '-' not in disambiguation[ot_tag]:
 				del disambiguation[ot_tag]
 	for ot_tag in disambiguation.keys ():
 		expect (ot_tag in ot.to_bcp_47, 'unknown OT tag: %s' % ot_tag)

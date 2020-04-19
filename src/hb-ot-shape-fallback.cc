@@ -24,10 +24,6 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#include "hb.hh"
-
-#ifndef HB_NO_OT_SHAPE
-
 #include "hb-ot-shape-fallback.hh"
 #include "hb-kern.hh"
 
@@ -45,30 +41,30 @@ recategorize_combining_class (hb_codepoint_t u,
     {
       switch (u)
       {
-	case 0x0E31u:
-	case 0x0E34u:
-	case 0x0E35u:
-	case 0x0E36u:
-	case 0x0E37u:
-	case 0x0E47u:
-	case 0x0E4Cu:
-	case 0x0E4Du:
-	case 0x0E4Eu:
+        case 0x0E31u:
+        case 0x0E34u:
+        case 0x0E35u:
+        case 0x0E36u:
+        case 0x0E37u:
+        case 0x0E47u:
+        case 0x0E4Cu:
+        case 0x0E4Du:
+        case 0x0E4Eu:
 	  klass = HB_UNICODE_COMBINING_CLASS_ABOVE_RIGHT;
 	  break;
 
-	case 0x0EB1u:
-	case 0x0EB4u:
-	case 0x0EB5u:
-	case 0x0EB6u:
-	case 0x0EB7u:
-	case 0x0EBBu:
-	case 0x0ECCu:
-	case 0x0ECDu:
+        case 0x0EB1u:
+        case 0x0EB4u:
+        case 0x0EB5u:
+        case 0x0EB6u:
+        case 0x0EB7u:
+        case 0x0EBBu:
+        case 0x0ECCu:
+        case 0x0ECDu:
 	  klass = HB_UNICODE_COMBINING_CLASS_ABOVE;
 	  break;
 
-	case 0x0EBCu:
+        case 0x0EBCu:
 	  klass = HB_UNICODE_COMBINING_CLASS_BELOW;
 	  break;
       }
@@ -167,10 +163,10 @@ recategorize_combining_class (hb_codepoint_t u,
 
 void
 _hb_ot_shape_fallback_mark_position_recategorize_marks (const hb_ot_shape_plan_t *plan HB_UNUSED,
-							hb_font_t *font HB_UNUSED,
-							hb_buffer_t  *buffer)
+						        hb_font_t *font HB_UNUSED,
+						        hb_buffer_t  *buffer)
 {
-#ifdef HB_NO_OT_SHAPE_FALLBACK
+#if defined(HB_NO_OT_SHAPE_FALLBACK)
   return;
 #endif
 
@@ -232,10 +228,10 @@ position_mark (const hb_ot_shape_plan_t *plan HB_UNUSED,
     case HB_UNICODE_COMBINING_CLASS_DOUBLE_ABOVE:
       if (buffer->props.direction == HB_DIRECTION_LTR) {
 	pos.x_offset += base_extents.x_bearing + base_extents.width - mark_extents.width / 2 - mark_extents.x_bearing;
-	break;
+        break;
       } else if (buffer->props.direction == HB_DIRECTION_RTL) {
 	pos.x_offset += base_extents.x_bearing - mark_extents.width / 2 - mark_extents.x_bearing;
-	break;
+        break;
       }
       HB_FALLTHROUGH;
 
@@ -387,7 +383,7 @@ position_around_base (const hb_ot_shape_plan_t *plan,
       if (last_combining_class != this_combining_class)
       {
 	last_combining_class = this_combining_class;
-	cluster_extents = component_extents;
+        cluster_extents = component_extents;
       }
 
       position_mark (plan, font, buffer, cluster_extents, i, this_combining_class);
@@ -422,12 +418,12 @@ position_cluster (const hb_ot_shape_plan_t *plan,
   /* Find the base glyph */
   hb_glyph_info_t *info = buffer->info;
   for (unsigned int i = start; i < end; i++)
-    if (!_hb_glyph_info_is_unicode_mark (&info[i]))
+    if (!HB_UNICODE_GENERAL_CATEGORY_IS_MARK (_hb_glyph_info_get_general_category (&info[i])))
     {
       /* Find mark glyphs */
       unsigned int j;
       for (j = i + 1; j < end; j++)
-	if (!_hb_glyph_info_is_unicode_mark (&info[j]))
+	if (!HB_UNICODE_GENERAL_CATEGORY_IS_MARK (_hb_glyph_info_get_general_category (&info[j])))
 	  break;
 
       position_around_base (plan, font, buffer, i, j, adjust_offsets_when_zeroing);
@@ -442,7 +438,7 @@ _hb_ot_shape_fallback_mark_position (const hb_ot_shape_plan_t *plan,
 				     hb_buffer_t  *buffer,
 				     bool adjust_offsets_when_zeroing)
 {
-#ifdef HB_NO_OT_SHAPE_FALLBACK
+#if defined(HB_NO_OT_SHAPE_FALLBACK)
   return;
 #endif
 
@@ -452,7 +448,7 @@ _hb_ot_shape_fallback_mark_position (const hb_ot_shape_plan_t *plan,
   unsigned int count = buffer->len;
   hb_glyph_info_t *info = buffer->info;
   for (unsigned int i = 1; i < count; i++)
-    if (likely (!_hb_glyph_info_is_unicode_mark (&info[i]))) {
+    if (likely (!HB_UNICODE_GENERAL_CATEGORY_IS_MARK (_hb_glyph_info_get_general_category (&info[i])))) {
       position_cluster (plan, font, buffer, start, i, adjust_offsets_when_zeroing);
       start = i;
     }
@@ -460,7 +456,6 @@ _hb_ot_shape_fallback_mark_position (const hb_ot_shape_plan_t *plan,
 }
 
 
-#ifndef HB_DISABLE_DEPRECATED
 struct hb_ot_shape_fallback_kern_driver_t
 {
   hb_ot_shape_fallback_kern_driver_t (hb_font_t   *font_,
@@ -479,7 +474,6 @@ struct hb_ot_shape_fallback_kern_driver_t
   hb_font_t *font;
   hb_direction_t direction;
 };
-#endif
 
 /* Performs font-assisted kerning. */
 void
@@ -487,11 +481,10 @@ _hb_ot_shape_fallback_kern (const hb_ot_shape_plan_t *plan,
 			    hb_font_t *font,
 			    hb_buffer_t *buffer)
 {
-#ifdef HB_NO_OT_SHAPE_FALLBACK
+#if defined(HB_NO_OT_SHAPE_FALLBACK)
   return;
 #endif
 
-#ifndef HB_DISABLE_DEPRECATED
   if (HB_DIRECTION_IS_HORIZONTAL (buffer->props.direction) ?
       !font->has_glyph_h_kerning_func () :
       !font->has_glyph_v_kerning_func ())
@@ -508,7 +501,6 @@ _hb_ot_shape_fallback_kern (const hb_ot_shape_plan_t *plan,
 
   if (reverse)
     buffer->reverse ();
-#endif
 }
 
 
@@ -591,6 +583,3 @@ _hb_ot_shape_fallback_spaces (const hb_ot_shape_plan_t *plan HB_UNUSED,
       }
     }
 }
-
-
-#endif
