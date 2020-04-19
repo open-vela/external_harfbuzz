@@ -24,10 +24,6 @@
  * Google Author(s): Behdad Esfahbod
  */
 
-#include "hb.hh"
-
-#ifndef HB_NO_OT_SHAPE
-
 #include "hb-ot-shape-complex.hh"
 
 
@@ -74,7 +70,7 @@ compose_hebrew (const hb_ot_shape_normalize_context_t *c,
 
   bool found = (bool) c->unicode->compose (a, b, ab);
 
-#ifdef HB_NO_OT_SHAPE_COMPLEX_HEBREW_FALLBACK
+#if defined(HB_NO_OT_SHAPE_COMPLEX_HEBREW_FALLBACK)
   return found;
 #endif
 
@@ -180,6 +176,3 @@ const hb_ot_complex_shaper_t _hb_ot_complex_shaper_hebrew =
   HB_OT_SHAPE_ZERO_WIDTH_MARKS_BY_GDEF_LATE,
   true, /* fallback_position */
 };
-
-
-#endif
