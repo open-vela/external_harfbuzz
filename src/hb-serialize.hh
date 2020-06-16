@@ -45,13 +45,18 @@ struct hb_serialize_context_t
 {
   typedef unsigned objidx_t;
 
+  struct range_t
+  {
+    char *head, *tail;
+  };
+
   enum whence_t {
      Head,	/* Relative to the current object head (default). */
      Tail,	/* Relative to the current object tail after packed. */
      Absolute	/* Absolute: from the start of the serialize buffer. */
    };
 
-  struct object_t
+  struct object_t : range_t
   {
     void fini () { links.fini (); }
 
@@ -78,22 +83,12 @@ struct hb_serialize_context_t
       objidx_t objidx;
     };
 
-    char *head;
-    char *tail;
     hb_vector_t<link_t> links;
     object_t *next;
   };
 
-  struct snapshot_t
-  {
-    char *head;
-    char *tail;
-    object_t *current; // Just for sanity check
-    unsigned num_links;
-  };
+  range_t snapshot () { range_t s = {head, tail} ; return s; }
 
-  snapshot_t snapshot ()
-  { return snapshot_t { head, tail, current, current->links.length }; }
 
   hb_serialize_context_t (void *start_, unsigned int size) :
     start ((char *) start_),
@@ -204,7 +199,7 @@ struct hb_serialize_context_t
     object_t *obj = current;
     if (unlikely (!obj)) return;
     current = current->next;
-    revert (obj->head, obj->tail);
+    revert (*obj);
     obj->fini ();
     object_pool.free (obj);
   }
@@ -258,19 +253,12 @@ struct hb_serialize_context_t
     return objidx;
   }
 
-  void revert (snapshot_t snap)
+  void revert (range_t snap)
   {
-    assert (snap.current == current);
-    current->links.shrink (snap.num_links);
-    revert (snap.head, snap.tail);
-  }
-  void revert (char *snap_head,
-	       char *snap_tail)
-  {
-    assert (snap_head <= head);
-    assert (tail <= snap_tail);
-    head = snap_head;
-    tail = snap_tail;
+    assert (snap.head <= head);
+    assert (tail <= snap.tail);
+    head = snap.head;
+    tail = snap.tail;
     discard_stale_objects ();
   }
 
@@ -331,11 +319,12 @@ struct hb_serialize_context_t
       {
 	const object_t* child = packed[link.objidx];
 	if (unlikely (!child)) { err_other_error(); return; }
-	unsigned offset = 0;
-	switch ((whence_t) link.whence) {
+	unsigned offset;
+	switch ((whence_t)link.whence) {
 	case Head:     offset = child->head - parent->head; break;
 	case Tail:     offset = child->head - parent->tail; break;
 	case Absolute: offset = (head - start) + (child->head - tail); break;
+	default: assert (0);
 	}
 
 	assert (offset >= link.bias);

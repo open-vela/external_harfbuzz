@@ -3,6 +3,7 @@
 # Runs a subsetting test suite. Compares the results of subsetting via harfbuzz
 # to subsetting via fonttools.
 
+import io
 from difflib import unified_diff
 import os
 import re
@@ -20,12 +21,11 @@ if not fonttools:
 	print ("fonttools is not present, skipping test.")
 	sys.exit (77)
 
-def cmd (command):
+def cmd(command):
 	p = subprocess.Popen (
-		command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-		universal_newlines=True)
+		command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	(stdoutdata, stderrdata) = p.communicate ()
-	print (stderrdata, end="", file=sys.stderr)
+	print (stderrdata, end="") # file=sys.stderr
 	return stdoutdata, p.returncode
 
 def read_binary (file_path):
@@ -58,39 +58,21 @@ def run_test (test, should_check_ots):
 	if return_code:
 		return fail_test (test, cli_args, "%s returned %d" % (' '.join (cli_args), return_code))
 
-	expected_ttx = tempfile.mktemp ()
-	_, return_code = run_ttx (os.path.join (test_suite.get_output_directory (),
-					    					test.get_font_name ()),
-							  expected_ttx)
+	expected_ttx, return_code = run_ttx (os.path.join (test_suite.get_output_directory (),
+					     test.get_font_name ()))
 	if return_code:
-		if os.path.exists (expected_ttx): os.remove (expected_ttx)
 		return fail_test (test, cli_args, "ttx (expected) returned %d" % (return_code))
 
-	actual_ttx = tempfile.mktemp ()
-	_, return_code = run_ttx (out_file, actual_ttx)
+	actual_ttx, return_code = run_ttx (out_file)
 	if return_code:
-		if os.path.exists (expected_ttx): os.remove (expected_ttx)
-		if os.path.exists (actual_ttx): os.remove (actual_ttx)
 		return fail_test (test, cli_args, "ttx (actual) returned %d" % (return_code))
 
-	with open (expected_ttx, encoding='utf-8') as f:
-		expected_ttx_text = f.read ()
-	with open (actual_ttx, encoding='utf-8') as f:
-		actual_ttx_text = f.read ()
-
-	# cleanup
-	try:
-		os.remove (expected_ttx)
-		os.remove (actual_ttx)
-	except:
-		pass
-
 	print ("stripping checksums.")
-	expected_ttx_text = strip_check_sum (expected_ttx_text)
-	actual_ttx_text = strip_check_sum (actual_ttx_text)
+	expected_ttx = strip_check_sum (expected_ttx)
+	actual_ttx = strip_check_sum (actual_ttx)
 
-	if not actual_ttx_text == expected_ttx_text:
-		for line in unified_diff (expected_ttx_text.splitlines (1), actual_ttx_text.splitlines (1)):
+	if not actual_ttx == expected_ttx:
+		for line in unified_diff (expected_ttx.splitlines (1), actual_ttx.splitlines (1)):
 			sys.stdout.write (line)
 		sys.stdout.flush ()
 		return fail_test (test, cli_args, 'ttx for expected and actual does not match.')
@@ -102,14 +84,14 @@ def run_test (test, should_check_ots):
 
 	return 0
 
-def run_ttx (font_path, ttx_output_path):
-	print ("fonttools ttx %s" % font_path)
-	return cmd ([fonttools, "ttx", "-q", "-o", ttx_output_path, font_path])
+def run_ttx (file):
+	print ("fonttools ttx %s" % file)
+	return cmd ([fonttools, "ttx", "-q", "-o-", file])
 
 def strip_check_sum (ttx_string):
 	return re.sub ('checkSumAdjustment value=["]0x([0-9a-fA-F])+["]',
 		       'checkSumAdjustment value="0x00000000"',
-		       ttx_string, count=1)
+		       ttx_string.decode ("utf-8"), count=1)
 
 def has_ots ():
 	if not ots_sanitize:
@@ -120,29 +102,32 @@ def has_ots ():
 def check_ots (path):
 	ots_report, returncode = cmd ([ots_sanitize, path])
 	if returncode:
-		print ("OTS Failure: %s" % ots_report)
+		print("OTS Failure: %s" % ots_report);
 		return False
 	return True
 
 args = sys.argv[1:]
 if not args or sys.argv[1].find ('hb-subset') == -1 or not os.path.exists (sys.argv[1]):
-	sys.exit ("First argument does not seem to point to usable hb-subset.")
+	print ("First argument does not seem to point to usable hb-subset.")
+	sys.exit (1)
 hb_subset, args = args[0], args[1:]
 
 if not len (args):
-	sys.exit ("No tests supplied.")
+	print ("No tests supplied.")
+	sys.exit (1)
 
 has_ots = has_ots()
 
 fails = 0
 for path in args:
-	with open (path, mode="r", encoding="utf-8") as f:
+	with io.open (path, mode="r", encoding="utf-8") as f:
 		print ("Running tests in " + path)
 		test_suite = SubsetTestSuite (path, f.read ())
 		for test in test_suite.tests ():
 			fails += run_test (test, has_ots)
 
 if fails != 0:
-	sys.exit ("%d test(s) failed." % fails)
+	print (str (fails) + " test(s) failed.")
+	sys.exit(1)
 else:
 	print ("All tests passed.")

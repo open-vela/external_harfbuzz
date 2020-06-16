@@ -27,6 +27,8 @@
 #define HB_CFF_INTERP_DICT_COMMON_HH
 
 #include "hb-cff-interp-common.hh"
+#include <math.h>
+#include <float.h>
 
 namespace CFF {
 

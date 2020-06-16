@@ -83,7 +83,6 @@ content_files=	\
 	usermanual-opentype-features.xml \
 	usermanual-clusters.xml \
 	usermanual-utilities.xml \
-	usermanual-integration.xml \
 	version.xml
 
 # SGML files where gtk-doc abbrevations (#GtkWidget) are expanded
@@ -107,7 +106,7 @@ include $(top_srcdir)/gtk-doc.make
 
 # Other files to distribute
 # e.g. EXTRA_DIST += version.xml.in
-EXTRA_DIST += version.xml.in meson.build
+EXTRA_DIST += version.xml.in
 
 # Files not to distribute
 # for --rebuild-types in $(SCAN_OPTIONS), e.g. $(DOC_MODULE).types

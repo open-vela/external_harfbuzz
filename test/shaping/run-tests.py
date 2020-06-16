@@ -11,7 +11,8 @@ if len (args) and args[0] == "--reference":
 	args = args[1:]
 
 if not args or args[0].find('hb-shape') == -1 or not os.path.exists (args[0]):
-	sys.exit ("""First argument does not seem to point to usable hb-shape.""")
+	print ("""First argument does not seem to point to usable hb-shape.""")
+	sys.exit (1)
 hb_shape, args = args[0], args[1:]
 
 def cmd(command):
@@ -123,8 +124,8 @@ for filename in args:
 			unicodes] + (options.split (' ') if options else []))
 
 		if glyphs1[0] != glyphs2[0] and glyphs_expected != '*':
-			print ("FT funcs: " + glyphs1[0], file=sys.stderr)
-			print ("OT funcs: " + glyphs2[0], file=sys.stderr)
+			print ("FT funcs: " + glyphs1[0]) # file=sys.stderr
+			print ("OT funcs: " + glyphs2[0]) # file=sys.stderr
 			fails += 1
 		else:
 			passes += 1
@@ -134,14 +135,14 @@ for filename in args:
 			continue
 
 		if glyphs1[0].strip() != glyphs_expected and glyphs_expected != '*':
-			print ("Actual:   " + glyphs1[0], file=sys.stderr)
-			print ("Expected: " + glyphs_expected, file=sys.stderr)
+			print ("Actual:   " + glyphs1[0]) # file=sys.stderr
+			print ("Expected: " + glyphs_expected) # file=sys.stderr
 			fails += 1
 		else:
 			passes += 1
 
 if not reference:
-	print ("%d tests passed; %d failed; %d skipped." % (passes, fails, skips), file=sys.stderr)
+	print ("%d tests passed; %d failed; %d skipped." % (passes, fails, skips)) # file=sys.stderr
 	if not (fails + passes):
 		print ("No tests ran.")
 	elif not (fails + skips):

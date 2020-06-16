@@ -59,9 +59,6 @@ enum
 
 struct AxisValueFormat1
 {
-  unsigned int get_axis_index () const { return axisIndex; }
-  float get_value ()             const { return value.to_float (); }
-
   hb_ot_name_id_t get_value_name_id () const { return valueNameID; }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -80,16 +77,13 @@ struct AxisValueFormat1
   NameID	valueNameID;	/* The name ID for entries in the 'name' table
 				 * that provide a display string for this
 				 * attribute value. */
-  HBFixed	value;		/* A numeric value for this attribute value. */
+  HBFixed		value;		/* A numeric value for this attribute value. */
   public:
   DEFINE_SIZE_STATIC (12);
 };
 
 struct AxisValueFormat2
 {
-  unsigned int get_axis_index () const { return axisIndex; }
-  float get_value ()             const { return nominalValue.to_float (); }
-
   hb_ot_name_id_t get_value_name_id () const { return valueNameID; }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -108,10 +102,10 @@ struct AxisValueFormat2
   NameID	valueNameID;	/* The name ID for entries in the 'name' table
 				 * that provide a display string for this
 				 * attribute value. */
-  HBFixed	nominalValue;	/* A numeric value for this attribute value. */
-  HBFixed	rangeMinValue;	/* The minimum value for a range associated
+  HBFixed		nominalValue;	/* A numeric value for this attribute value. */
+  HBFixed		rangeMinValue;	/* The minimum value for a range associated
 				 * with the specified name ID. */
-  HBFixed	rangeMaxValue;	/* The maximum value for a range associated
+  HBFixed		rangeMaxValue;	/* The maximum value for a range associated
 				 * with the specified name ID. */
   public:
   DEFINE_SIZE_STATIC (20);
@@ -119,9 +113,6 @@ struct AxisValueFormat2
 
 struct AxisValueFormat3
 {
-  unsigned int get_axis_index () const { return axisIndex; }
-  float get_value ()             const { return value.to_float (); }
-
   hb_ot_name_id_t get_value_name_id () const { return valueNameID; }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -140,8 +131,8 @@ struct AxisValueFormat3
   NameID	valueNameID;	/* The name ID for entries in the 'name' table
 				 * that provide a display string for this
 				 * attribute value. */
-  HBFixed	value;		/* A numeric value for this attribute value. */
-  HBFixed	linkedValue;	/* The numeric value for a style-linked mapping
+  HBFixed		value;		/* A numeric value for this attribute value. */
+  HBFixed		linkedValue;	/* The numeric value for a style-linked mapping
 				 * from this value. */
   public:
   DEFINE_SIZE_STATIC (16);
@@ -149,9 +140,6 @@ struct AxisValueFormat3
 
 struct AxisValueRecord
 {
-  unsigned int get_axis_index () const { return axisIndex; }
-  float get_value ()             const { return value.to_float (); }
-
   bool sanitize (hb_sanitize_context_t *c) const
   {
     TRACE_SANITIZE (this);
@@ -162,16 +150,13 @@ struct AxisValueRecord
   HBUINT16	axisIndex;	/* Zero-base index into the axis record array
 				 * identifying the axis to which this value
 				 * applies. Must be less than designAxisCount. */
-  HBFixed	value;		/* A numeric value for this attribute value. */
+  HBFixed		value;		/* A numeric value for this attribute value. */
   public:
   DEFINE_SIZE_STATIC (6);
 };
 
 struct AxisValueFormat4
 {
-  const AxisValueRecord &get_axis_record (unsigned int axis_index) const
-  { return axisValues.as_array (axisCount)[axis_index]; }
-
   hb_ot_name_id_t get_value_name_id () const { return valueNameID; }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -198,30 +183,6 @@ struct AxisValueFormat4
 
 struct AxisValue
 {
-  bool get_value (unsigned int axis_index) const
-  {
-    switch (u.format)
-    {
-    case 1: return u.format1.get_value ();
-    case 2: return u.format2.get_value ();
-    case 3: return u.format3.get_value ();
-    case 4: return u.format4.get_axis_record (axis_index).get_value ();
-    default:return 0;
-    }
-  }
-
-  unsigned int get_axis_index () const
-  {
-    switch (u.format)
-    {
-    case 1: return u.format1.get_axis_index ();
-    case 2: return u.format2.get_axis_index ();
-    case 3: return u.format3.get_axis_index ();
-    /* case 4: Makes more sense for variable fonts which are handled by fvar in hb-style */
-    default:return -1;
-    }
-  }
-
   hb_ot_name_id_t get_value_name_id () const
   {
     switch (u.format)
@@ -265,8 +226,6 @@ struct AxisValue
 
 struct StatAxisRecord
 {
-  int cmp (hb_tag_t key) const { return tag.cmp (key); }
-
   hb_ot_name_id_t get_name_id () const { return nameID; }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -291,38 +250,6 @@ struct STAT
   static constexpr hb_tag_t tableTag = HB_OT_TAG_STAT;
 
   bool has_data () const { return version.to_int (); }
-
-  bool find_axis_index (hb_tag_t tag, unsigned int *axis_index) const
-  {
-    hb_array_t<const StatAxisRecord> axes = get_design_axes ();
-    /* TODO: add lfind in hb_array_t and use it in here and fvar's find_axis_info */
-    for (unsigned int i = 0; i < axes.length; i++)
-      if (!axes[i].cmp (tag))
-      {
-	*axis_index = i;
-	return true;
-      }
-    return false;
-  }
-
-  bool get_value (hb_tag_t tag, float *value) const
-  {
-    unsigned int axis_index;
-    if (!find_axis_index (tag, &axis_index)) return false;
-
-    hb_array_t<const OffsetTo<AxisValue>> axis_values = get_axis_value_offsets ();
-    for (unsigned int i = 0; i < axis_values.length; i++)
-    {
-      const AxisValue& axis_value = (this + axis_values[i]);
-      if (axis_value.get_axis_index () == axis_index)
-      {
-	if (value)
-	  *value = axis_value.get_value (axis_index);
-	return true;
-      }
-    }
-    return false;
-  }
 
   unsigned get_design_axis_count () const { return designAxisCount; }
 

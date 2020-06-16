@@ -52,7 +52,6 @@ TEST_PROGS = \
 	test-ot-metrics-tt-var \
 	test-set \
 	test-shape \
-	test-style \
 	test-subset \
 	test-subset-cmap \
 	test-subset-drop-tables \

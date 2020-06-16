@@ -12,9 +12,8 @@ update:
 EXTRA_DIST = \
 	README \
 	COPYING \
-	DISABLED \
-	update.py \
-	meson.build \
+	update.sh \
+	extract-tests.py \
 	fonts \
 	$(TESTS) \
 	$(NULL)

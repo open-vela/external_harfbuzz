@@ -7,10 +7,6 @@ circles into sequences prohibited by the USE script development spec.
 This function should be used as the ``preprocess_text`` of an
 ``hb_ot_complex_shaper_t``.
 
-usage: ./gen-vowel-constraints.py ms-use/IndicShapingInvalidCluster.txt Scripts.txt
-
-Input file:
-* https://unicode.org/Public/UCD/latest/ucd/Scripts.txt
 """
 
 import collections
@@ -19,12 +15,17 @@ def write (s):
 	sys.stdout.flush ()
 	sys.stdout.buffer.write (s.encode ('utf-8'))
 import itertools
+import io
 import sys
 
 if len (sys.argv) != 3:
-	sys.exit (__doc__)
+	print ("""usage: ./gen-vowel-constraints.py ms-use/IndicShapingInvalidCluster.txt Scripts.txt
 
-with open (sys.argv[2], encoding='utf-8') as f:
+Input file, as of Unicode 12:
+* https://unicode.org/Public/UCD/latest/ucd/Scripts.txt""", file=sys.stderr)
+	sys.exit (1)
+
+with io.open (sys.argv[2], encoding='utf-8') as f:
 	scripts_header = [f.readline () for i in range (2)]
 	scripts = {}
 	script_order = {}
@@ -102,9 +103,9 @@ class ConstraintSet (object):
 					s.append ('{}0x{:04X}u == buffer->cur ({}).codepoint{}\n'.format (
 						self._indent (depth + 2), cp, index + i, ')' if i == len (self._c) - 1 else ' &&'))
 				s.append ('{}{{\n'.format (indent))
-				for i in range (index):
+				for i in range (index + 1):
 					s.append ('{}buffer->next_glyph ();\n'.format (self._indent (depth + 1)))
-				s.append ('{}matched = true;\n'.format (self._indent (depth + 1)))
+				s.append ('{}_output_dotted_circle (buffer);\n'.format (self._indent (depth + 1)))
 				s.append ('{}}}\n'.format (indent))
 		else:
 			s.append ('{}switch (buffer->cur ({}).codepoint)\n'.format(indent, index or ''))
@@ -127,7 +128,7 @@ class ConstraintSet (object):
 		return ''.join (s)
 
 constraints = {}
-with open (sys.argv[1], encoding='utf-8') as f:
+with io.open (sys.argv[1], encoding='utf-8') as f:
 	constraints_header = []
 	while True:
 		line = f.readline ().strip ()
