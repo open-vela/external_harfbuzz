@@ -28,8 +28,9 @@ hb_draw_fuzzer = os.path.join (top_builddir, "hb-draw-fuzzer" + EXEEXT)
 
 if not os.path.exists (hb_draw_fuzzer):
 	if len (sys.argv) == 1 or not os.path.exists (sys.argv[1]):
-		sys.exit ("""Failed to find hb-draw-fuzzer binary automatically,
+		print ("""Failed to find hb-draw-fuzzer binary automatically,
 please provide it as the first argument to the tool""")
+		sys.exit (1)
 
 	hb_draw_fuzzer = sys.argv[1]
 
@@ -41,7 +42,8 @@ valgrind = None
 if os.environ.get ('RUN_VALGRIND', ''):
 	valgrind = shutil.which ('valgrind')
 	if valgrind is None:
-		sys.exit ("""Valgrind requested but not found.""")
+		print ("""Valgrind requested but not found.""")
+		sys.exit (1)
 	if libtool is None:
 		print ("""Valgrind support is currently autotools only and needs libtool but not found.""")
 
@@ -67,4 +69,5 @@ for file in os.listdir (parent_path):
 
 
 if fails:
-	sys.exit ("%d draw fuzzer related tests failed." % fails)
+	print ("%i draw fuzzer related tests failed." % fails)
+	sys.exit (1)

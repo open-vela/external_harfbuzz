@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 
-"""usage: ./gen-indic-table.py IndicSyllabicCategory.txt IndicPositionalCategory.txt Blocks.txt
-
-Input files:
-* https://unicode.org/Public/UCD/latest/ucd/IndicSyllabicCategory.txt
-* https://unicode.org/Public/UCD/latest/ucd/IndicPositionalCategory.txt
-* https://unicode.org/Public/UCD/latest/ucd/Blocks.txt
-"""
-
-import sys
+import io, sys
 
 if len (sys.argv) != 4:
-	sys.exit (__doc__)
+	print ("""usage: ./gen-indic-table.py IndicSyllabicCategory.txt IndicPositionalCategory.txt Blocks.txt
+
+Input files, as of Unicode 12:
+* https://unicode.org/Public/UCD/latest/ucd/IndicSyllabicCategory.txt
+* https://unicode.org/Public/UCD/latest/ucd/IndicPositionalCategory.txt
+* https://unicode.org/Public/UCD/latest/ucd/Blocks.txt""", file=sys.stderr)
+	sys.exit (1)
 
 ALLOWED_SINGLES = [0x00A0, 0x25CC]
 ALLOWED_BLOCKS = [
@@ -37,7 +35,7 @@ ALLOWED_BLOCKS = [
 	'Myanmar Extended-A',
 ]
 
-files = [open (x, encoding='utf-8') for x in sys.argv[1:]]
+files = [io.open (x, encoding='utf-8') for x in sys.argv[1:]]
 
 headers = [[f.readline () for i in range (2)] for f in files]
 

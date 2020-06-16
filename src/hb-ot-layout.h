@@ -121,6 +121,7 @@ hb_ot_layout_get_glyphs_in_class (hb_face_t                  *face,
 				  hb_ot_layout_glyph_class_t  klass,
 				  hb_set_t                   *glyphs /* OUT */);
 
+
 /* Not that useful.  Provides list of attach points for a glyph that a
  * client may want to cache */
 HB_EXTERN unsigned int
@@ -261,6 +262,18 @@ hb_ot_layout_collect_lookups (hb_face_t      *face,
 			      const hb_tag_t *languages,
 			      const hb_tag_t *features,
 			      hb_set_t       *lookup_indexes /* OUT */);
+
+HB_EXTERN void
+hb_ot_layout_closure_lookups (hb_face_t      *face,
+			      hb_tag_t        table_tag,
+			      const hb_set_t *glyphs,
+			      hb_set_t       *lookup_indexes /* IN/OUT */);
+
+HB_EXTERN void
+hb_ot_layout_closure_features (hb_face_t      *face,
+			       hb_tag_t        table_tag,
+			       const hb_map_t *lookup_indexes, /* IN */
+			       hb_set_t       *feature_indexes /* OUT */);
 
 HB_EXTERN void
 hb_ot_layout_lookup_collect_glyphs (hb_face_t    *face,

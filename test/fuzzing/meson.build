@@ -11,6 +11,7 @@ foreach file_name : tests
   exe = executable(test_name, [file_name, 'main.cc'],
     cpp_args: cpp_args,
     include_directories: [incconfig, incsrc],
+    dependencies: deps,
     link_with: [libharfbuzz, libharfbuzz_subset],
     install: false,
   )
@@ -19,17 +20,14 @@ endforeach
 
 env = environment()
 env.set('srcdir', meson.current_source_dir())
-env.set('HB_TEST_SUBSET_FUZZER_TIMEOUT', '36')
 
 test('shape_fuzzer', find_program('run-shape-fuzzer-tests.py'),
   args: [
     hb_shape_fuzzer_exe,
   ],
   depends: [hb_shape_fuzzer_exe, libharfbuzz, libharfbuzz_subset],
-  workdir: meson.current_build_dir() / '..' / '..',
-  env: env,
-  suite: ['fuzzing'],
-)
+  workdir: join_paths(meson.current_build_dir(), '..', '..'),
+  env: env)
 
 test('subset_fuzzer', find_program('run-subset-fuzzer-tests.py'),
   args: [
@@ -37,17 +35,13 @@ test('subset_fuzzer', find_program('run-subset-fuzzer-tests.py'),
   ],
   # as the tests are ran concurrently let's raise acceptable time here
   # ideally better to break and let meson handles them in parallel
-  timeout: 300,
-  workdir: meson.current_build_dir() / '..' / '..',
-  env: env,
-  suite: ['fuzzing'],
-)
+  timeout: 120,
+  workdir: join_paths(meson.current_build_dir(), '..', '..'),
+  env: env)
 
 test('draw_fuzzer', find_program('run-draw-fuzzer-tests.py'),
   args: [
     hb_draw_fuzzer_exe,
   ],
-  workdir: meson.current_build_dir() / '..' / '..',
-  env: env,
-  suite: ['fuzzing'],
-)
+  workdir: join_paths(meson.current_build_dir(), '..', '..'),
+  env: env)

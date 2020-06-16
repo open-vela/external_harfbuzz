@@ -9,7 +9,6 @@ lib:
 EXTRA_DIST = \
 	COPYING \
 	fonts \
-	meson.build \
 	$(TESTS) \
 	$(NULL)
 
