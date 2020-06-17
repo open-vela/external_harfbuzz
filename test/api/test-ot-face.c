@@ -27,6 +27,7 @@
 #ifndef TEST_OT_FACE_NO_MAIN
 #include "hb-test.h"
 #endif
+#include <hb-aat.h>
 #include <hb-ot.h>
 
 /* Unit tests for hb-ot-*.h */
@@ -73,14 +74,21 @@ test_font (hb_font_t *font, hb_codepoint_t cp)
   hb_ot_color_has_png (face);
   hb_blob_destroy (hb_ot_color_glyph_reference_png (font, cp));
 
+  hb_aat_layout_feature_type_t feature;
+  unsigned count = 1;
+  hb_aat_layout_get_feature_types (face, 0, &count, &feature);
+  hb_aat_layout_feature_type_get_name_id (face, HB_AAT_LAYOUT_FEATURE_TYPE_CHARACTER_SHAPE);
+  hb_aat_layout_feature_selector_info_t setting = {0};
+  unsigned default_index;
+  count = 1;
+  hb_aat_layout_feature_type_get_selector_infos (face, HB_AAT_LAYOUT_FEATURE_TYPE_DESIGN_COMPLEXITY_TYPE, 0, &count, &setting, &default_index);
+
   hb_set_t *lookup_indexes = hb_set_create ();
   hb_set_add (lookup_indexes, 0);
-  hb_ot_layout_closure_lookups (face, HB_OT_TAG_GSUB, set, lookup_indexes);
 
   hb_map_t *lookup_mapping = hb_map_create ();
   hb_map_set (lookup_mapping, 0, 0);
   hb_set_t *feature_indices = hb_set_create ();
-  hb_ot_layout_closure_features (face, HB_OT_TAG_GSUB, lookup_mapping, feature_indices);
   hb_set_destroy (lookup_indexes);
   hb_set_destroy (feature_indices);
   hb_map_destroy (lookup_mapping);
@@ -90,6 +98,8 @@ test_font (hb_font_t *font, hb_codepoint_t cp)
   hb_ot_layout_has_glyph_classes (face);
   hb_ot_layout_has_substitution (face);
   hb_ot_layout_has_positioning (face);
+
+  hb_ot_layout_get_ligature_carets (font, HB_DIRECTION_LTR, cp, 0, NULL, NULL);
 
   hb_ot_math_has_data (face);
   hb_ot_math_get_constant (font, HB_OT_MATH_CONSTANT_MATH_LEADING);
@@ -114,6 +124,14 @@ test_font (hb_font_t *font, hb_codepoint_t cp)
   hb_ot_name_get_utf8 (face, cp, NULL, &len, buf);
   hb_ot_name_get_utf16 (face, cp, NULL, NULL, NULL);
   hb_ot_name_get_utf32 (face, cp, NULL, NULL, NULL);
+
+#if 0
+  hb_style_get_value (font, HB_STYLE_TAG_ITALIC);
+  hb_style_get_value (font, HB_STYLE_TAG_OPTICAL_SIZE);
+  hb_style_get_value (font, HB_STYLE_TAG_SLANT);
+  hb_style_get_value (font, HB_STYLE_TAG_WIDTH);
+  hb_style_get_value (font, HB_STYLE_TAG_WEIGHT);
+#endif
 
   hb_ot_var_get_axis_count (face);
   hb_ot_var_get_axis_infos (face, 0, NULL, NULL);
