@@ -1,1 +1,1 @@
---drop-tables-=GSUB,GPOS,GDEF
+--drop-tables-=GSUB,GPOS

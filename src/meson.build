@@ -635,7 +635,12 @@ if have_gobject
   )
 
   gir = find_program('g-ir-scanner', required: get_option('introspection'))
-  build_gir = gir.found() and (not meson.is_cross_build() or get_option('introspection').enabled())
+  build_gir = gir.found()
+
+  build_gir = build_gir and not meson.is_cross_build()
+  if not build_gir and get_option('introspection').enabled()
+    error('Introspection support is requested but it isn\'t available in cross builds')
+  endif
 
   build_gir = build_gir and get_option('default_library') != 'static'
   if not build_gir and get_option('introspection').enabled()
