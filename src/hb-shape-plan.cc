@@ -37,17 +37,10 @@
  * @short_description: Object representing a shaping plan
  * @include: hb.h
  *
- * Shape plans are an internal mechanism. Each plan contains state
- * describing how HarfBuzz will shape a particular text segment, based on
- * the combination of segment properties and the capabilities in the
- * font face in use.
- *
- * Shape plans are not used for shaping directly, but can be queried to
- * access certain information about how shaping will perform, given a set
- * of specific input parameters (script, language, direction, features,
- * etc.).
- *
- * Most client programs will not need to deal with shape plans directly.
+ * Shape plans are not used for shaping directly, but can be access to query
+ * certain information about how shaping will perform given a set of input
+ * parameters (script, language, direction, features, etc.)
+ * Most client would not need to deal with shape plans directly.
  **/
 
 
@@ -171,16 +164,15 @@ hb_shape_plan_key_t::equal (const hb_shape_plan_key_t *other)
 
 /**
  * hb_shape_plan_create: (Xconstructor)
- * @face: #hb_face_t to use
- * @props: The #hb_segment_properties_t of the segment
- * @user_features: (array length=num_user_features): The list of user-selected features
- * @num_user_features: The number of user-selected features
- * @shaper_list: (array zero-terminated=1): List of shapers to try
+ * @face:
+ * @props:
+ * @user_features: (array length=num_user_features):
+ * @num_user_features:
+ * @shaper_list: (array zero-terminated=1):
  *
- * Constructs a shaping plan for a combination of @face, @user_features, @props,
- * and @shaper_list.
  *
- * Return value: (transfer full): The shaping plan
+ *
+ * Return value: (transfer full):
  *
  * Since: 0.9.7
  **/
@@ -197,24 +189,6 @@ hb_shape_plan_create (hb_face_t                     *face,
 				shaper_list);
 }
 
-/**
- * hb_shape_plan_create2: (Xconstructor)
- * @face: #hb_face_t to use
- * @props: The #hb_segment_properties_t of the segment
- * @user_features: (array length=num_user_features): The list of user-selected features
- * @num_user_features: The number of user-selected features
- * @coords: (array length=num_coords): The list of variation-space coordinates
- * @num_coords: The number of variation-space coordinates
- * @shaper_list: (array zero-terminated=1): List of shapers to try
- *
- * The variable-font version of #hb_shape_plan_create. 
- * Constructs a shaping plan for a combination of @face, @user_features, @props,
- * and @shaper_list, plus the variation-space coordinates @coords.
- *
- * Return value: (transfer full): The shaping plan
- *
- * Since: 1.4.0
- **/
 hb_shape_plan_t *
 hb_shape_plan_create2 (hb_face_t                     *face,
 		       const hb_segment_properties_t *props,
@@ -274,9 +248,9 @@ bail:
 /**
  * hb_shape_plan_get_empty:
  *
- * Fetches the singleton empty shaping plan.
  *
- * Return value: (transfer full): The empty shaping plan
+ *
+ * Return value: (transfer full):
  *
  * Since: 0.9.7
  **/
@@ -288,11 +262,11 @@ hb_shape_plan_get_empty ()
 
 /**
  * hb_shape_plan_reference: (skip)
- * @shape_plan: A shaping plan
+ * @shape_plan: a shape plan.
  *
- * Increases the reference count on the given shaping plan.
  *
- * Return value: (transfer full): @shape_plan
+ *
+ * Return value: (transfer full):
  *
  * Since: 0.9.7
  **/
@@ -304,11 +278,9 @@ hb_shape_plan_reference (hb_shape_plan_t *shape_plan)
 
 /**
  * hb_shape_plan_destroy: (skip)
- * @shape_plan: A shaping plan
+ * @shape_plan: a shape plan.
  *
- * Decreases the reference count on the given shaping plan. When the
- * reference count reaches zero, the shaping plan is destroyed,
- * freeing all memory.
+ *
  *
  * Since: 0.9.7
  **/
@@ -326,13 +298,13 @@ hb_shape_plan_destroy (hb_shape_plan_t *shape_plan)
 
 /**
  * hb_shape_plan_set_user_data: (skip)
- * @shape_plan: A shaping plan
- * @key: The user-data key to set
- * @data: A pointer to the user data
- * @destroy: A callback to call when @data is not needed anymore
- * @replace: Whether to replace an existing data with the same key
+ * @shape_plan: a shape plan.
+ * @key:
+ * @data:
+ * @destroy:
+ * @replace:
  *
- * Attaches a user-data key/data pair to the given shaping plan. 
+ *
  *
  * Return value:
  *
@@ -350,13 +322,12 @@ hb_shape_plan_set_user_data (hb_shape_plan_t    *shape_plan,
 
 /**
  * hb_shape_plan_get_user_data: (skip)
- * @shape_plan: A shaping plan
- * @key: The user-data key to query
+ * @shape_plan: a shape plan.
+ * @key:
  *
- * Fetches the user data associated with the specified key, 
- * attached to the specified shaping plan.
  *
- * Return value: (transfer none): A pointer to the user data
+ *
+ * Return value: (transfer none):
  *
  * Since: 0.9.7
  **/
@@ -369,11 +340,11 @@ hb_shape_plan_get_user_data (hb_shape_plan_t    *shape_plan,
 
 /**
  * hb_shape_plan_get_shaper:
- * @shape_plan: A shaping plan
+ * @shape_plan: a shape plan.
  *
- * Fetches the shaper from a given shaping plan.
  *
- * Return value: (transfer none): The shaper
+ *
+ * Return value: (transfer none):
  *
  * Since: 0.9.7
  **/
@@ -429,16 +400,15 @@ _hb_shape_plan_execute_internal (hb_shape_plan_t    *shape_plan,
 }
 /**
  * hb_shape_plan_execute:
- * @shape_plan: A shaping plan
- * @font: The #hb_font_t to use
- * @buffer: The #hb_buffer_t to work upon
- * @features: (array length=num_features): Features to enable
- * @num_features: The number of features to enable
+ * @shape_plan: a shape plan.
+ * @font: a font.
+ * @buffer: a buffer.
+ * @features: (array length=num_features):
+ * @num_features:
  *
- * Executes the given shaping plan on the specified buffer, using
- * the given @font and @features.
  *
- * Return value: 
+ *
+ * Return value:
  *
  * Since: 0.9.7
  **/
@@ -465,16 +435,15 @@ hb_shape_plan_execute (hb_shape_plan_t    *shape_plan,
 
 /**
  * hb_shape_plan_create_cached:
- * @face: #hb_face_t to use
- * @props: The #hb_segment_properties_t of the segment
- * @user_features: (array length=num_user_features): The list of user-selected features
- * @num_user_features: The number of user-selected features
- * @shaper_list: (array zero-terminated=1): List of shapers to try
+ * @face:
+ * @props:
+ * @user_features: (array length=num_user_features):
+ * @num_user_features:
+ * @shaper_list: (array zero-terminated=1):
  *
- * Creates a cached shaping plan suitable for reuse, for a combination
- * of @face, @user_features, @props, and @shaper_list.
  *
- * Return value: (transfer full): The shaping plan
+ *
+ * Return value: (transfer full):
  *
  * Since: 0.9.7
  **/
@@ -491,25 +460,6 @@ hb_shape_plan_create_cached (hb_face_t                     *face,
 				       shaper_list);
 }
 
-/**
- * hb_shape_plan_create_cached2:
- * @face: #hb_face_t to use
- * @props: The #hb_segment_properties_t of the segment
- * @user_features: (array length=num_user_features): The list of user-selected features
- * @num_user_features: The number of user-selected features
- * @coords: (array length=num_coords): The list of variation-space coordinates
- * @num_coords: The number of variation-space coordinates
- * @shaper_list: (array zero-terminated=1): List of shapers to try
- *
- * The variable-font version of #hb_shape_plan_create_cached. 
- * Creates a cached shaping plan suitable for reuse, for a combination
- * of @face, @user_features, @props, and @shaper_list, plus the
- * variation-space coordinates @coords.
- *
- * Return value: (transfer full): The shaping plan
- *
- * Since: 1.4.0
- **/
 hb_shape_plan_t *
 hb_shape_plan_create_cached2 (hb_face_t                     *face,
 			      const hb_segment_properties_t *props,

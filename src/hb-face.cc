@@ -41,10 +41,8 @@
  * @short_description: Font face objects
  * @include: hb.h
  *
- * A font face is an object that represents a single face from within a
- * font family.
- *
- * More precisely, a font face represents a single face in a binary font file.
+ * Font face is objects represent a single face in a font family.
+ * More exactly, a font face represents a single face in a binary font file.
  * Font faces are typically built from a binary blob and a face index.
  * Font faces are used to create fonts.
  **/
@@ -54,7 +52,7 @@
  * hb_face_count:
  * @blob: a blob.
  *
- * Fetches the number of faces in a blob.
+ * Get number of faces in a blob.
  *
  * Return value: Number of faces in @blob
  *
@@ -98,19 +96,13 @@ DEFINE_NULL_INSTANCE (hb_face_t) =
 
 /**
  * hb_face_create_for_tables:
- * @reference_table_func: (closure user_data) (destroy destroy) (scope notified): Table-referencing function
- * @user_data: A pointer to the user data
- * @destroy: (optional): A callback to call when @data is not needed anymore
+ * @reference_table_func: (closure user_data) (destroy destroy) (scope notified):
+ * @user_data:
+ * @destroy:
  *
- * Variant of hb_face_create(), built for those cases where it is more
- * convenient to provide data for individual tables instead of the whole font
- * data. With the caveat that hb_face_get_table_tags() does not currently work
- * with faces created this way.
- * 
- * Creates a new face object from the specified @user_data and @reference_table_func,
- * with the @destroy callback. 
  *
- * Return value: (transfer full): The new face object
+ *
+ * Return value: (transfer full)
  *
  * Since: 0.9.2
  **/
@@ -190,15 +182,12 @@ _hb_face_for_data_reference_table (hb_face_t *face HB_UNUSED, hb_tag_t tag, void
 
 /**
  * hb_face_create: (Xconstructor)
- * @blob: #hb_blob_t to work upon
- * @index: The index of the face within @blob
+ * @blob:
+ * @index:
  *
- * Constructs a new face object from the specified blob and
- * a face index into that blob. This is used for blobs of
- * file formats such as Dfont and TTC that can contain more
- * than one face.
  *
- * Return value: (transfer full): The new face object
+ *
+ * Return value: (transfer full):
  *
  * Since: 0.9.2
  **/
@@ -233,9 +222,9 @@ hb_face_create (hb_blob_t    *blob,
 /**
  * hb_face_get_empty:
  *
- * Fetches the singleton empty face object.
  *
- * Return value: (transfer full) The empty face object
+ *
+ * Return value: (transfer full)
  *
  * Since: 0.9.2
  **/
@@ -248,11 +237,11 @@ hb_face_get_empty ()
 
 /**
  * hb_face_reference: (skip)
- * @face: A face object
+ * @face: a face.
  *
- * Increases the reference count on a face object.
  *
- * Return value: The @face object
+ *
+ * Return value:
  *
  * Since: 0.9.2
  **/
@@ -264,11 +253,9 @@ hb_face_reference (hb_face_t *face)
 
 /**
  * hb_face_destroy: (skip)
- * @face: A face object
- * 
- * Decreases the reference count on a face object. When the
- * reference count reaches zero, the face is destroyed,
- * freeing all memory.
+ * @face: a face.
+ *
+ *
  *
  * Since: 0.9.2
  **/
@@ -296,15 +283,15 @@ hb_face_destroy (hb_face_t *face)
 
 /**
  * hb_face_set_user_data: (skip)
- * @face: A face object
- * @key: The user-data key to set
- * @data: A pointer to the user data
- * @destroy: (optional): A callback to call when @data is not needed anymore
- * @replace: Whether to replace an existing data with the same key
+ * @face: a face.
+ * @key:
+ * @data:
+ * @destroy:
+ * @replace:
  *
- * Attaches a user-data key/data pair to the given face object. 
  *
- * Return value: %true if success, false otherwise
+ *
+ * Return value:
  *
  * Since: 0.9.2
  **/
@@ -320,13 +307,12 @@ hb_face_set_user_data (hb_face_t          *face,
 
 /**
  * hb_face_get_user_data: (skip)
- * @face: A face object
- * @key: The user-data key to query
+ * @face: a face.
+ * @key:
  *
- * Fetches the user data associated with the specified key,
- * attached to the specified face object.
  *
- * Return value: (transfer none): A pointer to the user data
+ *
+ * Return value: (transfer none):
  *
  * Since: 0.9.2
  **/
@@ -339,9 +325,9 @@ hb_face_get_user_data (const hb_face_t    *face,
 
 /**
  * hb_face_make_immutable:
- * @face: A face object
+ * @face: a face.
  *
- * Makes the given face object immutable.
+ *
  *
  * Since: 0.9.2
  **/
@@ -356,11 +342,11 @@ hb_face_make_immutable (hb_face_t *face)
 
 /**
  * hb_face_is_immutable:
- * @face: A face object
+ * @face: a face.
  *
- * Tests whether the given face object is immutable.
  *
- * Return value: True is @face is immutable, false otherwise
+ *
+ * Return value:
  *
  * Since: 0.9.2
  **/
@@ -373,13 +359,12 @@ hb_face_is_immutable (const hb_face_t *face)
 
 /**
  * hb_face_reference_table:
- * @face: A face object
- * @tag: The #hb_tag_t of the table to query
+ * @face: a face.
+ * @tag:
  *
- * Fetches a reference to the specified table within
- * the specified face.
  *
- * Return value: (transfer full): A pointer to the @tag table within @face
+ *
+ * Return value: (transfer full):
  *
  * Since: 0.9.2
  **/
@@ -395,13 +380,11 @@ hb_face_reference_table (const hb_face_t *face,
 
 /**
  * hb_face_reference_blob:
- * @face: A face object
+ * @face: a face.
  *
- * Fetches a pointer to the binary blob that contains the
- * specified face. Returns an empty blob if referencing face data is not
- * possible.
  *
- * Return value: (transfer full): A pointer to the blob for @face
+ *
+ * Return value: (transfer full):
  *
  * Since: 0.9.2
  **/
@@ -413,13 +396,10 @@ hb_face_reference_blob (hb_face_t *face)
 
 /**
  * hb_face_set_index:
- * @face: A face object
- * @index: The index to assign
+ * @face: a face.
+ * @index:
  *
- * Assigns the specified face-index to @face. Fails if the
- * face is immutable.
  *
- * <note>Note: face indices within a collection are zero-based.</note>
  *
  * Since: 0.9.2
  **/
@@ -435,13 +415,11 @@ hb_face_set_index (hb_face_t    *face,
 
 /**
  * hb_face_get_index:
- * @face: A face object
+ * @face: a face.
  *
- * Fetches the face-index corresponding to the given face.
  *
- * <note>Note: face indices within a collection are zero-based.</note>
  *
- * Return value: The index of @face. 
+ * Return value:
  *
  * Since: 0.9.2
  **/
@@ -453,10 +431,10 @@ hb_face_get_index (const hb_face_t *face)
 
 /**
  * hb_face_set_upem:
- * @face: A face object
- * @upem: The units-per-em value to assign
+ * @face: a face.
+ * @upem:
  *
- * Sets the units-per-em (upem) for a face object to the specified value.
+ *
  *
  * Since: 0.9.2
  **/
@@ -472,11 +450,11 @@ hb_face_set_upem (hb_face_t    *face,
 
 /**
  * hb_face_get_upem:
- * @face: A face object
+ * @face: a face.
  *
- * Fetches the units-per-em (upem) value of the specified face object.
  *
- * Return value: The upem value of @face
+ *
+ * Return value:
  *
  * Since: 0.9.2
  **/
@@ -488,10 +466,10 @@ hb_face_get_upem (const hb_face_t *face)
 
 /**
  * hb_face_set_glyph_count:
- * @face: A face object
- * @glyph_count: The glyph-count value to assign
+ * @face: a face.
+ * @glyph_count:
  *
- * Sets the glyph count for a face object to the specified value.
+ *
  *
  * Since: 0.9.7
  **/
@@ -507,11 +485,11 @@ hb_face_set_glyph_count (hb_face_t    *face,
 
 /**
  * hb_face_get_glyph_count:
- * @face: A face object
+ * @face: a face.
  *
- * Fetches the glyph-count value of the specified face object.
  *
- * Return value: The glyph-count value of @face
+ *
+ * Return value:
  *
  * Since: 0.9.7
  **/
@@ -523,16 +501,14 @@ hb_face_get_glyph_count (const hb_face_t *face)
 
 /**
  * hb_face_get_table_tags:
- * @face: A face object
- * @start_offset: The index of first table tag to retrieve
- * @table_count: (inout): Input = the maximum number of table tags to return;
- *                Output = the actual number of table tags returned (may be zero)
- * @table_tags: (out) (array length=table_count): The array of table tags found
+ * @face: a face.
+ * @start_offset: index of first tag to return.
+ * @table_count: input length of @table_tags array, output number of items written.
+ * @table_tags: array to write tags into.
  *
- * Fetches a list of all table tags for a face, if possible. The list returned will
- * begin at the offset provided
+ * Retrieves table tags for a face, if possible.
  *
- * Return value: Total number of tables, or zero if it is not possible to list
+ * Return value: total number of tables, or 0 if not possible to list.
  *
  * Since: 1.6.0
  **/
@@ -566,11 +542,8 @@ hb_face_get_table_tags (const hb_face_t *face,
 #ifndef HB_NO_FACE_COLLECT_UNICODES
 /**
  * hb_face_collect_unicodes:
- * @face: A face object
- * @out: The set to add Unicode characters to
- *
- * Collects all of the Unicode characters covered by @face and adds
- * them to the #hb_set_t set @out.
+ * @face: font face.
+ * @out: set to add Unicode characters covered by @face to.
  *
  * Since: 1.9.0
  */
@@ -582,11 +555,10 @@ hb_face_collect_unicodes (hb_face_t *face,
 }
 /**
  * hb_face_collect_variation_selectors:
- * @face: A face object
- * @out: The set to add Variation Selector characters to
+ * @face: font face.
+ * @out: set to add Variation Selector characters covered by @face to.
  *
- * Collects all Unicode "Variation Selector" characters covered by @face and adds
- * them to the #hb_set_t set @out.
+ *
  *
  * Since: 1.9.0
  */
@@ -598,12 +570,10 @@ hb_face_collect_variation_selectors (hb_face_t *face,
 }
 /**
  * hb_face_collect_variation_unicodes:
- * @face: A face object
- * @variation_selector: The Variation Selector to query
- * @out: The set to add Unicode characters to
+ * @face: font face.
+ * @out: set to add Unicode characters for @variation_selector covered by @face to.
  *
- * Collects all Unicode characters for @variation_selector covered by @face and adds
- * them to the #hb_set_t set @out.
+ *
  *
  * Since: 1.9.0
  */
@@ -738,9 +708,6 @@ hb_face_builder_create ()
 
 /**
  * hb_face_builder_add_table:
- * @face: A face object created with hb_face_builder_create()
- * @tag: The #hb_tag_t of the table to add
- * @blob: The blob containing the table data to add
  *
  * Add table for @tag with data provided by @blob to the face.  @face must
  * be created using hb_face_builder_create().
