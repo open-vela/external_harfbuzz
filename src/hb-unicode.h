@@ -467,7 +467,7 @@ typedef hb_bool_t			(*hb_unicode_decompose_func_t)		(hb_unicode_funcs_t *ufuncs,
  * @ufuncs: A Unicode-functions structure
  * @func: (closure user_data) (destroy destroy) (scope notified): The callback function to assign
  * @user_data: Data to pass to @func
- * @destroy: The function to call when @user_data is not needed anymore
+ * @destroy: (optional): The function to call when @user_data is not needed anymore
  *
  * Sets the implementation function for #hb_unicode_combining_class_func_t.
  *
@@ -483,7 +483,7 @@ hb_unicode_funcs_set_combining_class_func (hb_unicode_funcs_t *ufuncs,
  * @ufuncs: A Unicode-functions structure
  * @func: (closure user_data) (destroy destroy) (scope notified): The callback function to assign
  * @user_data: Data to pass to @func
- * @destroy: The function to call when @user_data is not needed anymore
+ * @destroy: (optional): The function to call when @user_data is not needed anymore
  *
  * Sets the implementation function for #hb_unicode_general_category_func_t.
  *
@@ -499,7 +499,7 @@ hb_unicode_funcs_set_general_category_func (hb_unicode_funcs_t *ufuncs,
  * @ufuncs: A Unicode-functions structure
  * @func: (closure user_data) (destroy destroy) (scope notified): The callback function to assign
  * @user_data: Data to pass to @func
- * @destroy: The function to call when @user_data is not needed anymore
+ * @destroy: (optional): The function to call when @user_data is not needed anymore
  *
  * Sets the implementation function for #hb_unicode_mirroring_func_t.
  *
@@ -515,7 +515,7 @@ hb_unicode_funcs_set_mirroring_func (hb_unicode_funcs_t *ufuncs,
  * @ufuncs: A Unicode-functions structure
  * @func: (closure user_data) (destroy destroy) (scope notified): The callback function to assign
  * @user_data: Data to pass to @func
- * @destroy: The function to call when @user_data is not needed anymore
+ * @destroy: (optional): The function to call when @user_data is not needed anymore
  *
  * Sets the implementation function for #hb_unicode_script_func_t.
  *
@@ -531,7 +531,7 @@ hb_unicode_funcs_set_script_func (hb_unicode_funcs_t *ufuncs,
  * @ufuncs: A Unicode-functions structure
  * @func: (closure user_data) (destroy destroy) (scope notified): The callback function to assign
  * @user_data: Data to pass to @func
- * @destroy: The function to call when @user_data is not needed anymore
+ * @destroy: (optional): The function to call when @user_data is not needed anymore
  *
  * Sets the implementation function for #hb_unicode_compose_func_t.
  *
@@ -547,7 +547,7 @@ hb_unicode_funcs_set_compose_func (hb_unicode_funcs_t *ufuncs,
  * @ufuncs: A Unicode-functions structure
  * @func: (closure user_data) (destroy destroy) (scope notified): The callback function to assign
  * @user_data: Data to pass to @func
- * @destroy: The function to call when @user_data is not needed anymore
+ * @destroy: (optional): The function to call when @user_data is not needed anymore
  *
  * Sets the implementation function for #hb_unicode_decompose_func_t.
  *
