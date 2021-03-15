@@ -36,7 +36,7 @@ test('shape_fuzzer', find_program('run-shape-fuzzer-tests.py'),
   args: [
     hb_shape_fuzzer_exe,
   ],
-  timeout: 300,
+  timeout: 60,
   depends: [hb_shape_fuzzer_exe, libharfbuzz, libharfbuzz_subset],
   workdir: join_paths(meson.current_build_dir(), '..', '..'),
   env: env,
