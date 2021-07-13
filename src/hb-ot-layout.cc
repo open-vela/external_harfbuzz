@@ -1886,20 +1886,27 @@ apply_string (OT::hb_ot_apply_context_t *c,
   if (likely (!lookup.is_reverse ()))
   {
     /* in/out forward substitution/positioning */
-    if (!Proxy::inplace)
+    if (Proxy::table_index == 0u)
       buffer->clear_output ();
-
     buffer->idx = 0;
-    apply_forward (c, accel);
 
-    if (!Proxy::inplace)
-      buffer->swap_buffers ();
+    bool ret;
+    ret = apply_forward (c, accel);
+    if (ret)
+    {
+      if (!Proxy::inplace)
+	buffer->swap_buffers ();
+      else
+	assert (!buffer->has_separate_output ());
+    }
   }
   else
   {
     /* in-place backward substitution/positioning */
-    assert (!buffer->have_output);
+    if (Proxy::table_index == 0u)
+      buffer->remove_output ();
     buffer->idx = buffer->len - 1;
+
     apply_backward (c, accel);
   }
 }
@@ -1915,8 +1922,7 @@ inline void hb_ot_map_t::apply (const Proxy &proxy,
   OT::hb_ot_apply_context_t c (table_index, font, buffer);
   c.set_recurse_func (Proxy::Lookup::apply_recurse_func);
 
-  for (unsigned int stage_index = 0; stage_index < stages[table_index].length; stage_index++)
-  {
+  for (unsigned int stage_index = 0; stage_index < stages[table_index].length; stage_index++) {
     const stage_map_t *stage = &stages[table_index][stage_index];
     for (; i < stage->last_lookup; i++)
     {
@@ -1935,7 +1941,10 @@ inline void hb_ot_map_t::apply (const Proxy &proxy,
     }
 
     if (stage->pause_func)
+    {
+      buffer->clear_output ();
       stage->pause_func (plan, font, buffer);
+    }
   }
 }
 
