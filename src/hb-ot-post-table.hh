@@ -55,13 +55,6 @@ struct postV2Tail
     return_trace (glyphNameIndex.sanitize (c));
   }
 
-  template<typename Iterator>
-  bool serialize (hb_serialize_context_t *c,
-                  Iterator it,
-                  const void* _post) const;
-
-  bool subset (hb_subset_context_t *c) const;
-
   protected:
   Array16Of<HBUINT16>	glyphNameIndex;	/* This is not an offset, but is the
 					 * ordinal number of the glyph in 'post'
@@ -78,18 +71,13 @@ struct post
 {
   static constexpr hb_tag_t tableTag = HB_OT_TAG_post;
 
-  bool serialize (hb_serialize_context_t *c, bool glyph_names) const
+  void serialize (hb_serialize_context_t *c) const
   {
-    TRACE_SERIALIZE (this);
     post *post_prime = c->allocate_min<post> ();
-    if (unlikely (!post_prime))  return_trace (false);
+    if (unlikely (!post_prime))  return;
 
     memcpy (post_prime, this, post::min_size);
-    if (!glyph_names)
-      return_trace (c->check_assign (post_prime->version.major, 3,
-                                     HB_SERIALIZE_ERROR_INT_OVERFLOW)); // Version 3 does not have any glyph names.
-
-    return_trace (true);
+    post_prime->version.major = 3; // Version 3 does not have any glyph names.
   }
 
   bool subset (hb_subset_context_t *c) const
@@ -98,18 +86,13 @@ struct post
     post *post_prime = c->serializer->start_embed<post> ();
     if (unlikely (!post_prime)) return_trace (false);
 
-    if (!serialize (c->serializer, c->plan->glyph_names))
-      return_trace (false);
-
-    if (c->plan->glyph_names && version.major == 2)
-      return_trace (v2X.subset (c));
+    serialize (c->serializer);
 
     return_trace (true);
   }
 
   struct accelerator_t
   {
-    friend struct postV2Tail;
     void init (hb_face_t *face)
     {
       index_to_offset.init ();
