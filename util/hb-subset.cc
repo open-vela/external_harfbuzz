@@ -49,22 +49,21 @@ struct subset_consumer_t : subset_options_t, output_options_t
 
   void init (const face_options_t *face_opts)
   {
-    face = hb_face_reference (face_opts->face);
+    face = hb_face_reference (face_opts->get_face ());
+    input = hb_subset_input_reference (get_input ());
   }
 
-  bool consume_line (text_options_t &text_opts)
+  void consume_line (const char   *text,
+		     unsigned int  text_len,
+		     const char   *text_before,
+		     const char   *text_after)
   {
-    unsigned int text_len;
-    const char *text;
-    if (!(text = text_opts.get_line (&text_len)))
-      return false;
-
     // TODO does this only get called with at least 1 codepoint?
     hb_set_t *codepoints = hb_subset_input_unicode_set (input);
     if (0 == strcmp (text, "*"))
     {
       hb_face_collect_unicodes (face, codepoints);
-      return true;
+      return;
     }
 
     gchar *c = (gchar *)text;
@@ -73,8 +72,6 @@ struct subset_consumer_t : subset_options_t, output_options_t
       hb_codepoint_t hb_cp = cp;
       hb_set_add (codepoints, hb_cp);
     } while ((c = g_utf8_find_next_char(c, text + text_len)));
-
-    return true;
   }
 
   hb_bool_t
@@ -120,6 +117,7 @@ struct subset_consumer_t : subset_options_t, output_options_t
       hb_blob_destroy (result);
     }
 
+    hb_subset_input_destroy (input);
     hb_face_destroy (new_face);
     hb_face_destroy (face);
   }
@@ -128,11 +126,12 @@ struct subset_consumer_t : subset_options_t, output_options_t
   bool failed = false;
 
   hb_face_t *face = nullptr;
+  hb_subset_input_t *input = nullptr;
 };
 
 int
 main (int argc, char **argv)
 {
-  using main_t = main_font_text_t<subset_consumer_t, face_options_t, text_options_t>;
-  return batch_main<main_t, true> (argc, argv);
+  auto main_func = main_font_text<subset_consumer_t, face_options_t, text_options_t>;
+  return batch_main<true> (main_func, argc, argv);
 }

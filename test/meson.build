@@ -1,4 +1,4 @@
 subdir('api')
-subdir('shape')
-subdir('subset')
 subdir('fuzzing')
+subdir('shaping')
+subdir('subset')

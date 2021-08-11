@@ -79,7 +79,7 @@ void free_ft_library ()
 static inline cairo_scaled_font_t *
 helper_cairo_create_scaled_font (const font_options_t *font_opts)
 {
-  hb_font_t *font = hb_font_reference (font_opts->font);
+  hb_font_t *font = hb_font_reference (font_opts->get_font ());
 
   cairo_font_face_t *cairo_face;
   /* We cannot use the FT_Face from hb_font_t, as doing so will confuse hb_font_t because
@@ -97,7 +97,7 @@ helper_cairo_create_scaled_font (const font_options_t *font_opts)
     }
 
     unsigned int blob_length;
-    const char *blob_data = hb_blob_get_data (font_opts->blob, &blob_length);
+    const char *blob_data = hb_blob_get_data (font_opts->get_blob (), &blob_length);
 
     if (FT_New_Memory_Face (ft_library,
 			    (const FT_Byte *) blob_data,
@@ -447,7 +447,7 @@ helper_cairo_create_context (double w, double h,
   const char *extension = out_opts->output_format;
   if (!extension) {
 #if HAVE_ISATTY
-    if (isatty (fileno (out_opts->fp)))
+    if (isatty (fileno (out_opts->get_file_handle ())))
     {
 #ifdef CAIRO_HAS_PNG_FUNCTIONS
       const char *name;
@@ -526,7 +526,7 @@ helper_cairo_create_context (double w, double h,
     content = CAIRO_CONTENT_COLOR_ALPHA;
 
   cairo_surface_t *surface;
-  FILE *f = out_opts->fp;
+  FILE *f = out_opts->get_file_handle ();
   if (constructor)
     surface = constructor (stdio_write_func, f, w, h);
   else if (constructor2)

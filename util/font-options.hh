@@ -44,6 +44,7 @@ struct font_options_t : face_options_t
 {
   ~font_options_t ()
   {
+    g_free (font_file);
     free (variations);
     g_free (font_funcs);
     hb_font_destroy (font);
@@ -51,7 +52,7 @@ struct font_options_t : face_options_t
 
   void add_options (option_parser_t *parser);
 
-  void post_parse (GError **error);
+  hb_font_t *get_font () const;
 
   hb_variation_t *variations = nullptr;
   unsigned int num_variations = 0;
@@ -64,7 +65,8 @@ struct font_options_t : face_options_t
   char *font_funcs = nullptr;
   int ft_load_flags = 2;
 
-  hb_font_t *font = nullptr;
+  private:
+  mutable hb_font_t *font = nullptr;
 };
 
 
@@ -79,10 +81,14 @@ static struct supported_font_funcs_t {
   {"ot",	hb_ot_font_set_funcs},
 };
 
-
-void
-font_options_t::post_parse (GError **error)
+hb_font_t *
+font_options_t::get_font () const
 {
+  if (font)
+    return font;
+
+  auto *face = get_face ();
+
   font = hb_font_create (face);
 
   if (font_size_x == FONT_SIZE_UPEM)
@@ -121,7 +127,6 @@ font_options_t::post_parse (GError **error)
 	  g_string_append_c (s, '/');
 	g_string_append (s, supported_font_funcs[i].name);
       }
-      g_string_append_c (s, '\n');
       char *p = g_string_free (s, FALSE);
       fail (false, "Unknown font function implementation `%s'; supported values are: %s; default is %s",
 	    font_funcs,
@@ -134,6 +139,8 @@ font_options_t::post_parse (GError **error)
 #ifdef HAVE_FREETYPE
   hb_ft_font_set_load_flags (font, ft_load_flags);
 #endif
+
+  return font;
 }
 
 
@@ -282,7 +289,7 @@ font_options_t::add_options (option_parser_t *parser)
     "    number. For example:\n"
     "\n"
     "      \"wght=500\"\n"
-    "      \"slnt=-7.5\"";
+    "      \"slnt=-7.5\"\n";
 
   GOptionEntry entries2[] =
   {
