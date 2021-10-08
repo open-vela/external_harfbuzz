@@ -41,57 +41,24 @@ struct graph_t
     vertex_t () :
         distance (0),
         space (0),
-        parents (),
+        incoming_edges (0),
         start (0),
         end (0),
         priority(0) {}
 
-    void fini () {
-      obj.fini ();
-      parents.fini ();
-    }
+    void fini () { obj.fini (); }
 
     hb_serialize_context_t::object_t obj;
     int64_t distance;
     int64_t space;
-    hb_vector_t<unsigned> parents;
+    unsigned incoming_edges;
     unsigned start;
     unsigned end;
     unsigned priority;
 
     bool is_shared () const
     {
-      return parents.length > 1;
-    }
-
-    unsigned incoming_edges () const
-    {
-      return parents.length;
-    }
-
-    void remove_parent (unsigned parent_index)
-    {
-      for (unsigned i = 0; i < parents.length; i++)
-      {
-        if (parents[i] != parent_index) continue;
-        parents.remove (i);
-        break;
-      }
-    }
-
-    void remap_parents (const hb_vector_t<unsigned>& id_map)
-    {
-      for (unsigned i = 0; i < parents.length; i++)
-        parents[i] = id_map[parents[i]];
-    }
-
-    void remap_parent (unsigned old_index, unsigned new_index)
-    {
-      for (unsigned i = 0; i < parents.length; i++)
-      {
-        if (parents[i] == old_index)
-          parents[i] = new_index;
-      }
+      return incoming_edges > 1;
     }
 
     bool is_leaf () const
@@ -129,6 +96,33 @@ struct graph_t
     unsigned child;
   };
 
+  struct clone_buffer_t
+  {
+    clone_buffer_t () : head (nullptr), tail (nullptr) {}
+
+    bool copy (const hb_serialize_context_t::object_t& object)
+    {
+      fini ();
+      unsigned size = object.tail - object.head;
+      head = (char*) hb_malloc (size);
+      if (!head) return false;
+
+      memcpy (head, object.head, size);
+      tail = head + size;
+      return true;
+    }
+
+    char* head;
+    char* tail;
+
+    void fini ()
+    {
+      if (!head) return;
+      hb_free (head);
+      head = nullptr;
+    }
+  };
+
   /*
    * A topological sorting of an object graph. Ordered
    * in reverse serialization order (first object in the
@@ -137,12 +131,11 @@ struct graph_t
    * serializer
    */
   graph_t (const hb_vector_t<hb_serialize_context_t::object_t *>& objects)
-      : parents_invalid (true),
+      : edge_count_invalid (true),
         distance_invalid (true),
         positions_invalid (true),
         successful (true)
   {
-    num_roots_for_space_.push (1);
     bool removed_nil = false;
     for (unsigned i = 0; i < objects.length; i++)
     {
@@ -169,13 +162,12 @@ struct graph_t
   ~graph_t ()
   {
     vertices_.fini_deep ();
+    clone_buffers_.fini_deep ();
   }
 
   bool in_error () const
   {
-    return !successful ||
-        vertices_.in_error () ||
-        num_roots_for_space_.in_error ();
+    return !successful || vertices_.in_error () || clone_buffers_.in_error ();
   }
 
   const vertex_t& root () const
@@ -236,13 +228,12 @@ struct graph_t
 
     hb_vector_t<unsigned> queue;
     hb_vector_t<vertex_t> sorted_graph;
-    if (unlikely (!check_success (sorted_graph.resize (vertices_.length)))) return;
     hb_vector_t<unsigned> id_map;
     if (unlikely (!check_success (id_map.resize (vertices_.length)))) return;
 
     hb_vector_t<unsigned> removed_edges;
     if (unlikely (!check_success (removed_edges.resize (vertices_.length)))) return;
-    update_parents ();
+    update_incoming_edge_count ();
 
     queue.push (root_idx ());
     int new_id = vertices_.length - 1;
@@ -253,12 +244,12 @@ struct graph_t
       queue.remove (0);
 
       vertex_t& next = vertices_[next_id];
-      sorted_graph[new_id] = next;
+      sorted_graph.push (next);
       id_map[next_id] = new_id--;
 
       for (const auto& link : next.obj.links) {
         removed_edges[link.objidx]++;
-        if (!(vertices_[link.objidx].incoming_edges () - removed_edges[link.objidx]))
+        if (!(vertices_[link.objidx].incoming_edges - removed_edges[link.objidx]))
           queue.push (link.objidx);
       }
     }
@@ -266,11 +257,14 @@ struct graph_t
     check_success (!queue.in_error ());
     check_success (!sorted_graph.in_error ());
     if (!check_success (new_id == -1))
-      print_orphaned_nodes ();
+      DEBUG_MSG (SUBSET_REPACK, nullptr, "Graph is not fully connected.");
 
-    remap_all_obj_indices (id_map, &sorted_graph);
+    remap_obj_indices (id_map, &sorted_graph);
 
-    vertices_.swap (sorted_graph);
+    sorted_graph.as_array ().reverse ();
+
+    vertices_.fini_deep ();
+    vertices_ = sorted_graph;
     sorted_graph.fini_deep ();
   }
 
@@ -291,13 +285,12 @@ struct graph_t
 
     hb_priority_queue_t queue;
     hb_vector_t<vertex_t> sorted_graph;
-    if (unlikely (!check_success (sorted_graph.resize (vertices_.length)))) return;
     hb_vector_t<unsigned> id_map;
     if (unlikely (!check_success (id_map.resize (vertices_.length)))) return;
 
     hb_vector_t<unsigned> removed_edges;
     if (unlikely (!check_success (removed_edges.resize (vertices_.length)))) return;
-    update_parents ();
+    update_incoming_edge_count ();
 
     queue.insert (root ().modified_distance (0), root_idx ());
     int new_id = root_idx ();
@@ -307,12 +300,12 @@ struct graph_t
       unsigned next_id = queue.pop_minimum().second;
 
       vertex_t& next = vertices_[next_id];
-      sorted_graph[new_id] = next;
+      sorted_graph.push (next);
       id_map[next_id] = new_id--;
 
       for (const auto& link : next.obj.links) {
         removed_edges[link.objidx]++;
-        if (!(vertices_[link.objidx].incoming_edges () - removed_edges[link.objidx]))
+        if (!(vertices_[link.objidx].incoming_edges - removed_edges[link.objidx]))
           // Add the order that the links were encountered to the priority.
           // This ensures that ties between priorities objects are broken in a consistent
           // way. More specifically this is set up so that if a set of objects have the same
@@ -326,89 +319,61 @@ struct graph_t
     check_success (!queue.in_error ());
     check_success (!sorted_graph.in_error ());
     if (!check_success (new_id == -1))
-      print_orphaned_nodes ();
+      DEBUG_MSG (SUBSET_REPACK, nullptr, "Graph is not fully connected.");
 
-    remap_all_obj_indices (id_map, &sorted_graph);
+    remap_obj_indices (id_map, &sorted_graph);
 
-    vertices_.swap (sorted_graph);
+    sorted_graph.as_array ().reverse ();
+
+    vertices_.fini_deep ();
+    vertices_ = sorted_graph;
     sorted_graph.fini_deep ();
   }
 
   /*
-   * Assign unique space numbers to each connected subgraph of 32 bit offset(s).
+   * Finds any links using 32 bits and isolates the subgraphs they point too.
    */
-  bool assign_32bit_spaces ()
+  bool isolate_32bit_links ()
   {
+    bool made_changes = false;
+    hb_set_t target_links;
     unsigned root_index = root_idx ();
-    hb_set_t visited;
-    hb_set_t roots;
+    int64_t next_space = 0;
     for (unsigned i = 0; i <= root_index; i++)
     {
+      if (i == root_index && root_idx () > i)
+        // root index may have moved due to graph modifications.
+        i = root_idx ();
+
       for (auto& l : vertices_[i].obj.links)
       {
         if (l.width == 4 && !l.is_signed)
         {
-          roots.add (l.objidx);
-          find_subgraph (l.objidx, visited);
+          isolate_subgraph (l.objidx);
+          vertices_[l.objidx].space = next_space++;
+          distance_invalid = true;
+          made_changes = true;
         }
       }
     }
-
-    // Mark everything not in the subgraphs of 32 bit roots as visited.
-    // This prevents 32 bit subgraphs from being connected via nodes not in the 32 bit subgraphs.
-    visited.invert ();
-
-    if (!roots) return false;
-
-    while (roots)
-    {
-      unsigned next = HB_SET_VALUE_INVALID;
-      if (!roots.next (&next)) break;
-
-      hb_set_t connected_roots;
-      find_connected_nodes (next, roots, visited, connected_roots);
-      isolate_subgraph (connected_roots);
-
-      unsigned next_space = this->next_space ();
-      num_roots_for_space_.push (0);
-      for (unsigned root : connected_roots)
-      {
-        DEBUG_MSG (SUBSET_REPACK, nullptr, "Subgraph %u gets space %u", root, next_space);
-        vertices_[root].space = next_space;
-        num_roots_for_space_[next_space] = num_roots_for_space_[next_space] + 1;
-        distance_invalid = true;
-        positions_invalid = true;
-      }
-
-      // TODO(grieger): special case for GSUB/GPOS use extension promotions to move 16 bit space
-      //                into the 32 bit space as needed, instead of using isolation.
-    }
-
-    return true;
+    return made_changes;
   }
 
   /*
    * Isolates the subgraph of nodes reachable from root. Any links to nodes in the subgraph
    * that originate from outside of the subgraph will be removed by duplicating the linked to
    * object.
-   *
-   * Indices stored in roots will be updated if any of the roots are duplicated to new indices.
    */
-  bool isolate_subgraph (hb_set_t& roots)
+  bool isolate_subgraph (unsigned root_idx)
   {
-    update_parents ();
+    update_incoming_edge_count ();
     hb_hashmap_t<unsigned, unsigned> subgraph;
 
     // incoming edges to root_idx should be all 32 bit in length so we don't need to de-dup these
     // set the subgraph incoming edge count to match all of root_idx's incoming edges
-    hb_set_t parents;
-    for (unsigned root_idx : roots)
-    {
-      subgraph.set (root_idx, wide_parents (root_idx, parents));
-      find_subgraph (root_idx, subgraph);
-    }
+    subgraph.set (root_idx, vertices_[root_idx].incoming_edges);
+    find_subgraph (root_idx, subgraph);
 
-    unsigned original_root_idx = root_idx ();
     hb_hashmap_t<unsigned, unsigned> index_map;
     bool made_changes = false;
     for (auto entry : subgraph.iter ())
@@ -416,7 +381,7 @@ struct graph_t
       const auto& node = vertices_[entry.first];
       unsigned subgraph_incoming_edges = entry.second;
 
-      if (subgraph_incoming_edges < node.incoming_edges ())
+      if (subgraph_incoming_edges < node.incoming_edges)
       {
         // Only  de-dup objects with incoming links from outside the subgraph.
         made_changes = true;
@@ -427,14 +392,6 @@ struct graph_t
     if (!made_changes)
       return false;
 
-    if (original_root_idx != root_idx ()
-        && parents.has (original_root_idx))
-    {
-      // If the root idx has changed since parents was determined, update root idx in parents
-      parents.add (root_idx ());
-      parents.del (original_root_idx);
-    }
-
     auto new_subgraph =
         + subgraph.keys ()
         | hb_map([&] (unsigned node_idx) {
@@ -442,21 +399,7 @@ struct graph_t
           return node_idx;
         })
         ;
-
     remap_obj_indices (index_map, new_subgraph);
-    remap_obj_indices (index_map, parents.iter (), true);
-
-    // Update roots set with new indices as needed.
-    unsigned next = HB_SET_VALUE_INVALID;
-    while (roots.next (&next))
-    {
-      if (index_map.has (next))
-      {
-        roots.del (next);
-        roots.add (index_map[next]);
-      }
-    }
-
     return true;
   }
 
@@ -472,14 +415,6 @@ struct graph_t
       subgraph.set (link.objidx, 1);
       find_subgraph (link.objidx, subgraph);
     }
-  }
-
-  void find_subgraph (unsigned node_idx, hb_set_t& subgraph)
-  {
-    if (subgraph.has (node_idx)) return;
-    subgraph.add (node_idx);
-    for (const auto& link : vertices_[node_idx].obj.links)
-      find_subgraph (link.objidx, subgraph);
   }
 
   /*
@@ -508,21 +443,23 @@ struct graph_t
 
     auto* clone = vertices_.push ();
     auto& child = vertices_[node_idx];
-    if (vertices_.in_error ()) {
+    clone_buffer_t* buffer = clone_buffers_.push ();
+    if (vertices_.in_error ()
+        || clone_buffers_.in_error ()
+        || !check_success (buffer->copy (child.obj))) {
       return -1;
     }
 
-    clone->obj.head = child.obj.head;
-    clone->obj.tail = child.obj.tail;
+    clone->obj.head = buffer->head;
+    clone->obj.tail = buffer->tail;
     clone->distance = child.distance;
     clone->space = child.space;
-    clone->parents.reset ();
+    clone->incoming_edges = 0;
 
-    unsigned clone_idx = vertices_.length - 2;
     for (const auto& l : child.obj.links)
     {
       clone->obj.links.push (l);
-      vertices_[l.objidx].parents.push (clone_idx);
+      vertices_[l.objidx].incoming_edges++;
     }
 
     check_success (!clone->obj.links.in_error ());
@@ -531,14 +468,10 @@ struct graph_t
     // The root's obj idx does change, however since it's root nothing else refers to it.
     // all other obj idx's will be unaffected.
     vertex_t root = vertices_[vertices_.length - 2];
-    vertices_[clone_idx] = *clone;
+    vertices_[vertices_.length - 2] = *clone;
     vertices_[vertices_.length - 1] = root;
 
-    // Since the root moved, update the parents arrays of all children on the root.
-    for (const auto& l : root.obj.links)
-      vertices_[l.objidx].remap_parent (root_idx () - 1, root_idx ());
-
-    return clone_idx;
+    return vertices_.length - 2;
   }
 
   /*
@@ -548,7 +481,7 @@ struct graph_t
    */
   bool duplicate (unsigned parent_idx, unsigned child_idx)
   {
-    update_parents ();
+    update_incoming_edge_count ();
 
     unsigned links_to_child = 0;
     for (const auto& l : vertices_[parent_idx].obj.links)
@@ -556,7 +489,7 @@ struct graph_t
       if (l.objidx == child_idx) links_to_child++;
     }
 
-    if (vertices_[child_idx].incoming_edges () <= links_to_child)
+    if (vertices_[child_idx].incoming_edges <= links_to_child)
     {
       // Can't duplicate this node, doing so would orphan the original one as all remaining links
       // to child are from parent.
@@ -572,15 +505,19 @@ struct graph_t
     if (clone_idx == (unsigned) -1) return false;
     // duplicate shifts the root node idx, so if parent_idx was root update it.
     if (parent_idx == clone_idx) parent_idx++;
+    auto& clone = vertices_[clone_idx];
+    auto& child = vertices_[child_idx];
 
     auto& parent = vertices_[parent_idx];
     for (unsigned i = 0; i < parent.obj.links.length; i++)
     {
       auto& l = parent.obj.links[i];
-      if (l.objidx != child_idx)
-        continue;
-
-      reassign_link (l, parent_idx, clone_idx);
+      if (l.objidx == child_idx)
+      {
+        l.objidx = clone_idx;
+        clone.incoming_edges++;
+        child.incoming_edges--;
+      }
     }
 
     return true;
@@ -630,111 +567,29 @@ struct graph_t
     return overflows->length;
   }
 
-  void print_orphaned_nodes ()
-  {
-    if (!DEBUG_ENABLED(SUBSET_REPACK)) return;
-
-    DEBUG_MSG (SUBSET_REPACK, nullptr, "Graph is not fully connected.");
-    parents_invalid = true;
-    update_parents();
-
-    for (unsigned i = 0; i < root_idx (); i++)
-    {
-      const auto& v = vertices_[i];
-      if (!v.parents)
-        DEBUG_MSG (SUBSET_REPACK, nullptr, "Node %u is orphaned.", i);
-    }
-  }
-
   void print_overflows (const hb_vector_t<overflow_record_t>& overflows)
   {
     if (!DEBUG_ENABLED(SUBSET_REPACK)) return;
 
-    update_parents ();
+    update_incoming_edge_count ();
     for (const auto& o : overflows)
     {
       const auto& parent = vertices_[o.parent];
       const auto& child = vertices_[o.child];
       DEBUG_MSG (SUBSET_REPACK, nullptr,
-                 "  overflow from "
-                 "%4d (%4d in, %4d out, space %2d) => "
-                 "%4d (%4d in, %4d out, space %2d)",
+                 "  overflow from %d (%d in, %d out) => %d (%d in, %d out)",
                  o.parent,
-                 parent.incoming_edges (),
+                 parent.incoming_edges,
                  parent.obj.links.length,
-                 space_for (o.parent),
                  o.child,
-                 child.incoming_edges (),
-                 child.obj.links.length,
-                 space_for (o.child));
+                 child.incoming_edges,
+                 child.obj.links.length);
     }
-  }
-
-  unsigned num_roots_for_space (unsigned space) const
-  {
-    return num_roots_for_space_[space];
-  }
-
-  unsigned next_space () const
-  {
-    return num_roots_for_space_.length;
-  }
-
-  void move_to_new_space (unsigned index)
-  {
-    auto& node = vertices_[index];
-    num_roots_for_space_.push (1);
-    num_roots_for_space_[node.space] = num_roots_for_space_[node.space] - 1;
-    node.space = num_roots_for_space_.length - 1;
-  }
-
-  unsigned space_for (unsigned index, unsigned* root = nullptr) const
-  {
-    const auto& node = vertices_[index];
-    if (node.space)
-    {
-      if (root != nullptr)
-        *root = index;
-      return node.space;
-    }
-
-    if (!node.parents)
-    {
-      if (root)
-        *root = index;
-      return 0;
-    }
-
-    return space_for (node.parents[0], root);
   }
 
   void err_other_error () { this->successful = false; }
 
  private:
-
-  /*
-   * Returns the numbers of incoming edges that are 32bits wide.
-   */
-  unsigned wide_parents (unsigned node_idx, hb_set_t& parents) const
-  {
-    unsigned count = 0;
-    hb_set_t visited;
-    for (unsigned p : vertices_[node_idx].parents)
-    {
-      if (visited.has (p)) continue;
-      visited.add (p);
-
-      for (const auto& l : vertices_[p].obj.links)
-      {
-        if (l.objidx == node_idx && l.width == 4 && !l.is_signed)
-        {
-          count++;
-          parents.add (p);
-        }
-      }
-    }
-    return count;
-  }
 
   bool check_success (bool success)
   { return this->successful && (success || (err_other_error (), false)); }
@@ -742,22 +597,22 @@ struct graph_t
   /*
    * Creates a map from objid to # of incoming edges.
    */
-  void update_parents ()
+  void update_incoming_edge_count ()
   {
-    if (!parents_invalid) return;
+    if (!edge_count_invalid) return;
 
     for (unsigned i = 0; i < vertices_.length; i++)
-      vertices_[i].parents.reset ();
+      vertices_[i].incoming_edges = 0;
 
-    for (unsigned p = 0; p < vertices_.length; p++)
+    for (const vertex_t& v : vertices_)
     {
-      for (auto& l : vertices_[p].obj.links)
+      for (auto& l : v.obj.links)
       {
-        vertices_[l.objidx].parents.push (p);
+        vertices_[l.objidx].incoming_edges++;
       }
     }
 
-    parents_invalid = false;
+    edge_count_invalid = false;
   }
 
   /*
@@ -808,20 +663,19 @@ struct graph_t
     hb_priority_queue_t queue;
     queue.insert (0, vertices_.length - 1);
 
-    hb_vector_t<bool> visited;
-    visited.resize (vertices_.length);
+    hb_set_t visited;
 
     while (!queue.in_error () && !queue.is_empty ())
     {
       unsigned next_idx = queue.pop_minimum ().second;
-      if (visited[next_idx]) continue;
+      if (visited.has (next_idx)) continue;
       const auto& next = vertices_[next_idx];
       int64_t next_distance = vertices_[next_idx].distance;
-      visited[next_idx] = true;
+      visited.add (next_idx);
 
       for (const auto& link : next.obj.links)
       {
-        if (visited[link.objidx]) continue;
+        if (visited.has (link.objidx)) continue;
 
         const auto& child = vertices_[link.objidx].obj;
         int64_t child_weight = (child.tail - child.head) +
@@ -839,7 +693,7 @@ struct graph_t
     check_success (!queue.in_error ());
     if (!check_success (queue.is_empty ()))
     {
-      print_orphaned_nodes ();
+      DEBUG_MSG (SUBSET_REPACK, nullptr, "Graph is not fully connected.");
       return;
     }
 
@@ -889,26 +743,11 @@ struct graph_t
   }
 
   /*
-   * Updates a link in the graph to point to a different object. Corrects the
-   * parents vector on the previous and new child nodes.
-   */
-  void reassign_link (hb_serialize_context_t::object_t::link_t& link,
-                      unsigned parent_idx,
-                      unsigned new_idx)
-  {
-    unsigned old_idx = link.objidx;
-    link.objidx = new_idx;
-    vertices_[old_idx].remove_parent (parent_idx);
-    vertices_[new_idx].parents.push (parent_idx);
-  }
-
-  /*
    * Updates all objidx's in all links using the provided mapping. Corrects incoming edge counts.
    */
   template<typename Iterator, hb_requires (hb_is_iterator (Iterator))>
   void remap_obj_indices (const hb_hashmap_t<unsigned, unsigned>& id_map,
-                          Iterator subgraph,
-                          bool only_wide = false)
+                          Iterator subgraph)
   {
     if (!id_map) return;
     for (unsigned i : subgraph)
@@ -917,9 +756,9 @@ struct graph_t
       {
         auto& link = vertices_[i].obj.links[j];
         if (!id_map.has (link.objidx)) continue;
-        if (only_wide && !(link.width == 4 && !link.is_signed)) continue;
-
-        reassign_link (link, i, id_map[link.objidx]);
+        vertices_[link.objidx].incoming_edges--;
+        link.objidx = id_map[link.objidx];
+        vertices_[link.objidx].incoming_edges++;
       }
     }
   }
@@ -927,12 +766,11 @@ struct graph_t
   /*
    * Updates all objidx's in all links using the provided mapping.
    */
-  void remap_all_obj_indices (const hb_vector_t<unsigned>& id_map,
-                              hb_vector_t<vertex_t>* sorted_graph) const
+  void remap_obj_indices (const hb_vector_t<unsigned>& id_map,
+                          hb_vector_t<vertex_t>* sorted_graph) const
   {
     for (unsigned i = 0; i < sorted_graph->length; i++)
     {
-      (*sorted_graph)[i].remap_parents (id_map);
       for (unsigned j = 0; j < (*sorted_graph)[i].obj.links.length; j++)
       {
         auto& link = (*sorted_graph)[i].obj.links[j];
@@ -987,72 +825,16 @@ struct graph_t
     }
   }
 
-  /*
-   * Finds all nodes in targets that are reachable from start_idx, nodes in visited will be skipped.
-   * For this search the graph is treated as being undirected.
-   *
-   * Connected targets will be added to connected and removed from targets. All visited nodes
-   * will be added to visited.
-   */
-  void find_connected_nodes (unsigned start_idx,
-                             hb_set_t& targets,
-                             hb_set_t& visited,
-                             hb_set_t& connected)
-  {
-    if (visited.has (start_idx)) return;
-    visited.add (start_idx);
-
-    if (targets.has (start_idx))
-    {
-      targets.del (start_idx);
-      connected.add (start_idx);
-    }
-
-    const auto& v = vertices_[start_idx];
-
-    // Graph is treated as undirected so search children and parents of start_idx
-    for (const auto& l : v.obj.links)
-      find_connected_nodes (l.objidx, targets, visited, connected);
-
-    for (unsigned p : v.parents)
-      find_connected_nodes (p, targets, visited, connected);
-  }
-
  public:
   // TODO(garretrieger): make private, will need to move most of offset overflow code into graph.
   hb_vector_t<vertex_t> vertices_;
  private:
-  bool parents_invalid;
+  hb_vector_t<clone_buffer_t> clone_buffers_;
+  bool edge_count_invalid;
   bool distance_invalid;
   bool positions_invalid;
   bool successful;
-  hb_vector_t<unsigned> num_roots_for_space_;
 };
-
-static bool _try_isolating_subgraphs (const hb_vector_t<graph_t::overflow_record_t>& overflows,
-                                      graph_t& sorted_graph)
-{
-  for (int i = overflows.length - 1; i >= 0; i--)
-  {
-    const graph_t::overflow_record_t& r = overflows[i];
-    unsigned root = 0;
-    unsigned space = sorted_graph.space_for (r.parent, &root);
-    if (!space) continue;
-    if (sorted_graph.num_roots_for_space (space) <= 1) continue;
-
-    DEBUG_MSG (SUBSET_REPACK, nullptr, "Overflow in space %d moving subgraph %d to space %d.",
-               space,
-               root,
-               sorted_graph.next_space ());
-
-    hb_set_t roots;
-    roots.add (root);
-    sorted_graph.isolate_subgraph (roots);
-    sorted_graph.move_to_new_space (root);
-    return true;
-  }
-  return false;
-}
 
 static bool _process_overflows (const hb_vector_t<graph_t::overflow_record_t>& overflows,
                                 hb_set_t& priority_bumped_parents,
@@ -1132,9 +914,11 @@ hb_resolve_overflows (const hb_vector_t<hb_serialize_context_t::object_t *>& pac
        ||  table_tag == HB_OT_TAG_GSUB)
       && sorted_graph.will_overflow ())
   {
-    DEBUG_MSG (SUBSET_REPACK, nullptr, "Assigning spaces to 32 bit subgraphs.");
-    if (sorted_graph.assign_32bit_spaces ())
+    if (sorted_graph.isolate_32bit_links ())
+    {
+      DEBUG_MSG (SUBSET_REPACK, nullptr, "Isolated extension sub tables.");
       sorted_graph.sort_shortest_distance ();
+    }
   }
 
   unsigned round = 0;
@@ -1147,14 +931,10 @@ hb_resolve_overflows (const hb_vector_t<hb_serialize_context_t::object_t *>& pac
     sorted_graph.print_overflows (overflows);
 
     hb_set_t priority_bumped_parents;
-
-    if (!_try_isolating_subgraphs (overflows, sorted_graph))
+    if (!_process_overflows (overflows, priority_bumped_parents, sorted_graph))
     {
-      if (!_process_overflows (overflows, priority_bumped_parents, sorted_graph))
-      {
-        DEBUG_MSG (SUBSET_REPACK, nullptr, "No resolution available :(");
-        break;
-      }
+      DEBUG_MSG (SUBSET_REPACK, nullptr, "No resolution available :(");
+      break;
     }
 
     sorted_graph.sort_shortest_distance ();
