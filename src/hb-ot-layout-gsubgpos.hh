@@ -1210,14 +1210,15 @@ static inline bool match_lookahead (hb_ot_apply_context_t *c,
 
 struct LookupRecord
 {
-  bool serialize (hb_serialize_context_t *c,
-		  const hb_map_t         *lookup_map) const
+  LookupRecord* copy (hb_serialize_context_t *c,
+		      const hb_map_t         *lookup_map) const
   {
     TRACE_SERIALIZE (this);
     auto *out = c->embed (*this);
-    if (unlikely (!out)) return_trace (false);
+    if (unlikely (!out)) return_trace (nullptr);
 
-    return_trace (c->check_assign (out->lookupListIndex, lookup_map->get (lookupListIndex), HB_SERIALIZE_ERROR_INT_OVERFLOW));
+    out->lookupListIndex = hb_map_get (lookup_map, lookupListIndex);
+    return_trace (out);
   }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -1233,24 +1234,6 @@ struct LookupRecord
   public:
   DEFINE_SIZE_STATIC (4);
 };
-
-static unsigned serialize_lookuprecord_array (hb_serialize_context_t *c,
-					      const hb_array_t<const LookupRecord> lookupRecords,
-					      const hb_map_t *lookup_map)
-{
-  unsigned count = 0;
-  for (const LookupRecord& r : lookupRecords)
-  {
-    if (!lookup_map->has (r.lookupListIndex))
-      continue;
-
-    if (!r.serialize (c, lookup_map))
-      return 0;
-
-    count++;
-  }
-  return count;
-}
 
 enum ContextFormat { SimpleContext = 1, ClassBasedContext = 2, CoverageBasedContext = 3 };
 
@@ -1622,6 +1605,8 @@ struct Rule
     if (unlikely (!c->extend_min (out))) return_trace (false);
 
     out->inputCount = inputCount;
+    out->lookupCount = lookupCount;
+
     const hb_array_t<const HBUINT16> input = inputZ.as_array (inputCount - 1);
     for (const auto org : input)
     {
@@ -1632,9 +1617,17 @@ struct Rule
 
     const UnsizedArrayOf<LookupRecord> &lookupRecord = StructAfter<UnsizedArrayOf<LookupRecord>>
 						       (inputZ.as_array ((inputCount ? inputCount - 1 : 0)));
-   
-    unsigned count = serialize_lookuprecord_array (c, lookupRecord.as_array (lookupCount), lookup_map);
-    return_trace (c->check_assign (out->lookupCount, count, HB_SERIALIZE_ERROR_INT_OVERFLOW));
+    for (unsigned i = 0; i < (unsigned) lookupCount; i++)
+    {
+      if (!lookup_map->has (lookupRecord[i].lookupListIndex))
+      {
+        out->lookupCount--;
+        continue;
+      }
+      c->copy (lookupRecord[i], lookup_map);
+    }
+
+    return_trace (true);
   }
 
   bool subset (hb_subset_context_t *c,
@@ -2233,6 +2226,7 @@ struct ContextFormat3
 
     out->format = format;
     out->glyphCount = glyphCount;
+    out->lookupCount = lookupCount;
 
     auto coverages = coverageZ.as_array (glyphCount);
 
@@ -2244,12 +2238,19 @@ struct ContextFormat3
       if (!o->serialize_subset (c, offset, this)) return_trace (false);
     }
 
-    const UnsizedArrayOf<LookupRecord>& lookupRecord = StructAfter<UnsizedArrayOf<LookupRecord>> (coverageZ.as_array (glyphCount));
+    const LookupRecord *lookupRecord = &StructAfter<LookupRecord> (coverageZ.as_array (glyphCount));
     const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
-    
+    for (unsigned i = 0; i < (unsigned) lookupCount; i++)
+    {
+      if (!lookup_map->has (lookupRecord[i].lookupListIndex))
+      {
+        out->lookupCount--;
+        continue;
+      }
+      c->serializer->copy (lookupRecord[i], lookup_map);
+    }
 
-    unsigned count = serialize_lookuprecord_array (c->serializer, lookupRecord.as_array (lookupCount), lookup_map);
-    return_trace (c->serializer->check_assign (out->lookupCount, count, HB_SERIALIZE_ERROR_INT_OVERFLOW));
+    return_trace (true);
   }
 
   bool sanitize (hb_sanitize_context_t *c) const
@@ -2538,15 +2539,15 @@ struct ChainRule
       c->copy ((HBUINT16) g);
   }
 
-  bool serialize (hb_serialize_context_t *c,
-		  const hb_map_t *lookup_map,
-		  const hb_map_t *backtrack_map,
-		  const hb_map_t *input_map = nullptr,
-		  const hb_map_t *lookahead_map = nullptr) const
+  ChainRule* copy (hb_serialize_context_t *c,
+		   const hb_map_t *lookup_map,
+		   const hb_map_t *backtrack_map,
+		   const hb_map_t *input_map = nullptr,
+		   const hb_map_t *lookahead_map = nullptr) const
   {
     TRACE_SERIALIZE (this);
     auto *out = c->start_embed (this);
-    if (unlikely (!out)) return_trace (false);
+    if (unlikely (!out)) return_trace (nullptr);
 
     const hb_map_t *mapping = backtrack_map;
     serialize_array (c, backtrack.len, + backtrack.iter ()
@@ -2565,10 +2566,19 @@ struct ChainRule
     const Array16Of<LookupRecord> &lookupRecord = StructAfter<Array16Of<LookupRecord>> (lookahead);
 
     HBUINT16* lookupCount = c->embed (&(lookupRecord.len));
-    if (!lookupCount) return_trace (false);
+    if (!lookupCount) return_trace (nullptr);
 
-    unsigned count = serialize_lookuprecord_array (c, lookupRecord.as_array (), lookup_map);
-    return_trace (c->check_assign (*lookupCount, count, HB_SERIALIZE_ERROR_INT_OVERFLOW));
+    for (unsigned i = 0; i < lookupRecord.len; i++)
+    {
+      if (!lookup_map->has (lookupRecord[i].lookupListIndex))
+      {
+        (*lookupCount)--;
+        continue;
+      }
+      if (!c->copy (lookupRecord[i], lookup_map)) return_trace (nullptr);
+    }
+
+    return_trace (out);
   }
 
   bool subset (hb_subset_context_t *c,
@@ -2590,7 +2600,7 @@ struct ChainRule
 	  !hb_all (lookahead, glyphset))
 	return_trace (false);
 
-      serialize (c->serializer, lookup_map, c->plan->glyph_map);
+      copy (c->serializer, lookup_map, c->plan->glyph_map);
     }
     else
     {
@@ -2599,7 +2609,7 @@ struct ChainRule
 	  !hb_all (lookahead, lookahead_map))
 	return_trace (false);
 
-      serialize (c->serializer, lookup_map, backtrack_map, input_map, lookahead_map);
+      copy (c->serializer, lookup_map, backtrack_map, input_map, lookahead_map);
     }
 
     return_trace (true);
@@ -3308,12 +3318,22 @@ struct ChainContextFormat3
 
     const Array16Of<LookupRecord> &lookupRecord = StructAfter<Array16Of<LookupRecord>> (lookahead);
     const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
-  
-    HBUINT16 *lookupCount = c->serializer->copy<HBUINT16> (lookupRecord.len);
-    if (!lookupCount) return_trace (false);
+    hb_set_t lookup_indices;
+    for (unsigned i = 0; i < (unsigned) lookupRecord.len; i++)
+      if (lookup_map->has (lookupRecord[i].lookupListIndex))
+        lookup_indices.add (i);
 
-    unsigned count = serialize_lookuprecord_array (c->serializer, lookupRecord.as_array (), lookup_map);
-    return_trace (c->serializer->check_assign (*lookupCount, count, HB_SERIALIZE_ERROR_INT_OVERFLOW));
+    HBUINT16 lookupCount;
+    lookupCount = lookup_indices.get_population ();
+    if (!c->serializer->copy (lookupCount)) return_trace (false);
+
+    for (unsigned i : lookup_indices.iter ())
+    {
+      if (!c->serializer->copy (lookupRecord[i], lookup_map))
+        return_trace (false);
+    }
+
+    return_trace (true);
   }
 
   bool sanitize (hb_sanitize_context_t *c) const
