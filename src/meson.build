@@ -29,7 +29,6 @@ hb_base_sources = files(
   'hb-blob.cc',
   'hb-blob.hh',
   'hb-buffer-serialize.cc',
-  'hb-buffer-verify.cc',
   'hb-buffer.cc',
   'hb-buffer.hh',
   'hb-cache.hh',
