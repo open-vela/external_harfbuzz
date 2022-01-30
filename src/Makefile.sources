@@ -25,7 +25,6 @@ HB_BASE_sources = \
 	hb-blob.cc \
 	hb-blob.hh \
 	hb-buffer-serialize.cc \
-	hb-buffer-verify.cc \
 	hb-buffer.cc \
 	hb-buffer.hh \
 	hb-cache.hh \
