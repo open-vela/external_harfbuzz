@@ -343,30 +343,9 @@ hb_subset_or_fail (hb_face_t *source, const hb_subset_input_t *input)
 {
   if (unlikely (!input || !source)) return hb_face_get_empty ();
 
-  hb_subset_plan_t *plan = hb_subset_plan_create_or_fail (source, input);
-  if (unlikely (!plan)) {
-    return nullptr;
-  }
-
-  hb_face_t * result = hb_subset_plan_execute_or_fail (plan);
-  hb_subset_plan_destroy (plan);
-  return result;
-}
-
-
-/**
- * hb_subset_from_plan_or_fail:
- * @plan: a subsetting plan.
- *
- * Subsets a font according to provided plan. Returns nullptr
- * if the subset operation fails.
- *
- * Since: REPLACEME
- **/
-hb_face_t *
-hb_subset_plan_execute_or_fail (hb_subset_plan_t *plan)
-{
-  if (unlikely (!plan || plan->in_error ())) {
+  hb_subset_plan_t *plan = hb_subset_plan_create (source, input);
+  if (unlikely (plan->in_error ())) {
+    hb_subset_plan_destroy (plan);
     return nullptr;
   }
 
@@ -374,7 +353,7 @@ hb_subset_plan_execute_or_fail (hb_subset_plan_t *plan)
   bool success = true;
   hb_tag_t table_tags[32];
   unsigned offset = 0, num_tables = ARRAY_LENGTH (table_tags);
-  while ((hb_face_get_table_tags (plan->source, offset, &num_tables, table_tags), num_tables))
+  while ((hb_face_get_table_tags (source, offset, &num_tables, table_tags), num_tables))
   {
     for (unsigned i = 0; i < num_tables; ++i)
     {
@@ -388,5 +367,8 @@ hb_subset_plan_execute_or_fail (hb_subset_plan_t *plan)
   }
 end:
 
-  return success ? hb_face_reference (plan->dest) : nullptr;
+  hb_face_t *result = success ? hb_face_reference (plan->dest) : nullptr;
+
+  hb_subset_plan_destroy (plan);
+  return result;
 }
