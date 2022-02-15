@@ -28,7 +28,6 @@
 #define HB_OT_HMTX_TABLE_HH
 
 #include "hb-open-type.hh"
-#include "hb-ot-maxp-table.hh"
 #include "hb-ot-hhea-table.hh"
 #include "hb-ot-var-hvar-table.hh"
 #include "hb-ot-metrics.hh"
@@ -99,12 +98,12 @@ struct hmtxvmtx
 	   hb_requires (hb_is_iterator (Iterator))>
   void serialize (hb_serialize_context_t *c,
 		  Iterator it,
-		  unsigned num_long_metrics)
+		  unsigned num_advances)
   {
     unsigned idx = 0;
     for (auto _ : it)
     {
-      if (idx < num_long_metrics)
+      if (idx < num_advances)
       {
 	LongMetric lm;
 	lm.advance = _.first;
@@ -129,17 +128,17 @@ struct hmtxvmtx
     if (unlikely (!table_prime)) return_trace (false);
 
     accelerator_t _mtx (c->plan->source);
-    unsigned num_long_metrics;
+    unsigned num_advances;
     {
-      /* Determine num_long_metrics to encode. */
+      /* Determine num_advances to encode. */
       auto& plan = c->plan;
-      num_long_metrics = plan->num_output_glyphs ();
+      num_advances = plan->num_output_glyphs ();
       hb_codepoint_t old_gid = 0;
-      unsigned int last_advance = plan->old_gid_for_new_gid (num_long_metrics - 1, &old_gid) ? _mtx.get_advance (old_gid) : 0;
-      while (num_long_metrics > 1 &&
-	     last_advance == (plan->old_gid_for_new_gid (num_long_metrics - 2, &old_gid) ? _mtx.get_advance (old_gid) : 0))
+      unsigned int last_advance = plan->old_gid_for_new_gid (num_advances - 1, &old_gid) ? _mtx.get_advance (old_gid) : 0;
+      while (num_advances > 1 &&
+	     last_advance == (plan->old_gid_for_new_gid (num_advances - 2, &old_gid) ? _mtx.get_advance (old_gid) : 0))
       {
-	num_long_metrics--;
+	num_advances--;
       }
     }
 
@@ -154,13 +153,13 @@ struct hmtxvmtx
 	      })
     ;
 
-    table_prime->serialize (c->serializer, it, num_long_metrics);
+    table_prime->serialize (c->serializer, it, num_advances);
 
     if (unlikely (c->serializer->in_error ()))
       return_trace (false);
 
     // Amend header num hmetrics
-    if (unlikely (!subset_update_header (c->plan, num_long_metrics)))
+    if (unlikely (!subset_update_header (c->plan, num_advances)))
       return_trace (false);
 
     return_trace (true);
@@ -173,46 +172,35 @@ struct hmtxvmtx
     accelerator_t (hb_face_t *face,
 		   unsigned int default_advance_ = 0)
     {
-      table = hb_sanitize_context_t ().reference_table<hmtxvmtx> (face, T::tableTag);
-      var_table = hb_sanitize_context_t ().reference_table<HVARVVAR> (face, T::variationsTag);
-
       default_advance = default_advance_ ? default_advance_ : hb_face_get_upem (face);
 
-      /* Populate count variables and sort them out as we go */
-
-      unsigned int len = table.get_length ();
-      if (len & 1)
-        len--;
-
-      num_long_metrics = T::is_horizontal ?
-			 face->table.hhea->numberOfLongMetrics :
+      num_advances = T::is_horizontal ?
+		     face->table.hhea->numberOfLongMetrics :
 #ifndef HB_NO_VERTICAL
-			 face->table.vhea->numberOfLongMetrics
+		     face->table.vhea->numberOfLongMetrics
 #else
-			 0
+		     0
 #endif
-			 ;
-      if (unlikely (num_long_metrics * 4 > len))
-	num_long_metrics = len / 4;
-      len -= num_long_metrics * 4;
+		     ;
 
-      num_bearings = face->table.maxp->get_num_glyphs ();
+      table = hb_sanitize_context_t ().reference_table<hmtxvmtx> (face, T::tableTag);
 
-      if (unlikely (num_bearings < num_long_metrics))
-        num_bearings = num_long_metrics;
-      if (unlikely ((num_bearings - num_long_metrics) * 2 > len))
-        num_bearings = num_long_metrics + len / 2;
-      len -= (num_bearings - num_long_metrics) * 2;
+      /* Cap num_metrics() and num_advances() based on table length. */
+      unsigned int len = table.get_length ();
+      if (unlikely (num_advances * 4 > len))
+	num_advances = len / 4;
+      num_metrics = num_advances + (len - 4 * num_advances) / 2;
 
-      /* We MUST set num_bearings to zero if num_long_metrics is zero.
+      /* We MUST set num_metrics to zero if num_advances is zero.
        * Our get_advance() depends on that. */
-      if (unlikely (!num_long_metrics))
-	num_bearings = num_long_metrics = 0;
+      if (unlikely (!num_advances))
+      {
+	num_metrics = num_advances = 0;
+	table.destroy ();
+	table = hb_blob_get_empty ();
+      }
 
-      num_advances = num_bearings + len / 2;
-      num_glyphs = face->get_num_glyphs ();
-      if (num_glyphs < num_advances)
-        num_glyphs = num_advances;
+      var_table = hb_sanitize_context_t ().reference_table<HVARVVAR> (face, T::variationsTag);
     }
     ~accelerator_t ()
     {
@@ -222,14 +210,14 @@ struct hmtxvmtx
 
     int get_side_bearing (hb_codepoint_t glyph) const
     {
-      if (glyph < num_long_metrics)
+      if (glyph < num_advances)
 	return table->longMetricZ[glyph].sb;
 
-      if (unlikely (glyph >= num_bearings))
+      if (unlikely (glyph >= num_metrics))
 	return 0;
 
-      const FWORD *bearings = (const FWORD *) &table->longMetricZ[num_long_metrics];
-      return bearings[glyph - num_long_metrics];
+      const FWORD *bearings = (const FWORD *) &table->longMetricZ[num_advances];
+      return bearings[glyph - num_advances];
     }
 
     int get_side_bearing (hb_font_t *font, hb_codepoint_t glyph) const
@@ -237,7 +225,7 @@ struct hmtxvmtx
       int side_bearing = get_side_bearing (glyph);
 
 #ifndef HB_NO_VAR
-      if (unlikely (glyph >= num_bearings) || !font->num_coords)
+      if (unlikely (glyph >= num_metrics) || !font->num_coords)
 	return side_bearing;
 
       if (var_table.get_length ())
@@ -251,35 +239,18 @@ struct hmtxvmtx
 
     unsigned int get_advance (hb_codepoint_t glyph) const
     {
-      /* OpenType case. */
-      if (glyph < num_bearings)
-	return table->longMetricZ[hb_min (glyph, (uint32_t) num_long_metrics - 1)].advance;
+      if (unlikely (glyph >= num_metrics))
+      {
+	/* If num_metrics is zero, it means we don't have the metrics table
+	 * for this direction: return default advance.  Otherwise, it means that the
+	 * glyph index is out of bound: return zero. */
+	if (num_metrics)
+	  return 0;
+	else
+	  return default_advance;
+      }
 
-      /* If num_advances is zero, it means we don't have the metrics table
-       * for this direction: return default advance.  Otherwise, there's a
-       * well-defined answer. */
-      if (unlikely (!num_advances))
-	return default_advance;
-
-#ifdef HB_NO_BORING_EXPANSION
-      return 0;
-#endif
-
-      if (unlikely (glyph >= num_glyphs))
-        return 0;
-
-      /* num_bearings <= glyph < num_glyphs;
-       * num_bearings <= num_advances */
-
-      /* TODO Optimize */
-
-      if (num_bearings == num_advances)
-        return get_advance (num_bearings - 1);
-
-      const FWORD *bearings = (const FWORD *) &table->longMetricZ[num_long_metrics];
-      const UFWORD *advances = (const UFWORD *) &bearings[num_bearings - num_long_metrics];
-
-      return advances[hb_min (glyph - num_bearings, num_advances - num_bearings - 1)];
+      return table->longMetricZ[hb_min (glyph, (uint32_t) num_advances - 1)].advance;
     }
 
     unsigned int get_advance (hb_codepoint_t  glyph,
@@ -288,7 +259,7 @@ struct hmtxvmtx
       unsigned int advance = get_advance (glyph);
 
 #ifndef HB_NO_VAR
-      if (unlikely (glyph >= num_bearings) || !font->num_coords)
+      if (unlikely (glyph >= num_metrics) || !font->num_coords)
 	return advance;
 
       if (var_table.get_length ())
@@ -301,12 +272,8 @@ struct hmtxvmtx
     }
 
     protected:
-    // 0 <= num_long_metrics <= num_bearings <= num_advances <= num_glyphs
-    unsigned num_long_metrics;
-    unsigned num_bearings;
-    unsigned num_advances;
-    unsigned num_glyphs;
-
+    unsigned int num_metrics;
+    unsigned int num_advances;
     unsigned int default_advance;
 
     private:
@@ -338,8 +305,6 @@ struct hmtxvmtx
 				 * the end. This allows a monospaced
 				 * font to vary the side bearing
 				 * values for each glyph. */
-/*UnsizedArrayOf<UFWORD>advancesX;*/
-				/* TODO Document. */
   public:
   DEFINE_SIZE_ARRAY (0, longMetricZ);
 };
