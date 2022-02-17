@@ -61,7 +61,7 @@ HB_BEGIN_DECLS
  * usage is no longer supported. Use #HB_SCRIPT_MATH instead.</note>
  *
  * Since: 1.3.3
- * Deprecated: 3.4.0
+ * Deprecated: REPLACEME
  */
 #define HB_OT_MATH_SCRIPT HB_OT_TAG_MATH_SCRIPT
 
