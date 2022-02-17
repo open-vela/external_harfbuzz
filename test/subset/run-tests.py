@@ -11,6 +11,7 @@ import sys
 import tempfile
 import shutil
 import io
+import hashlib
 
 from subset_test_suite import SubsetTestSuite
 
@@ -62,11 +63,11 @@ def run_test (test, should_check_ots):
 
 	expected_file = os.path.join (test_suite.get_output_directory (), test.get_font_name ())
 	with open (expected_file, "rb") as fp:
-		expected_contents = fp.read()
+		expected_hash = hashlib.sha224(fp.read()).hexdigest()
 	with open (out_file, "rb") as fp:
-		actual_contents = fp.read()
+		actual_hash = hashlib.sha224(fp.read()).hexdigest()
 
-	if expected_contents == actual_contents:
+	if expected_hash == actual_hash:
 		if should_check_ots:
 			print ("Checking output with ots-sanitize.")
 			if not check_ots (out_file):

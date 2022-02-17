@@ -59,7 +59,7 @@ HB_BEGIN_DECLS
  * #hb_ot_layout_collect_features. In other cases, #HB_SCRIPT_MATH should be
  * used instead.</note>
  *
- * Since: 3.4.0
+ * Since: REPLACEME
  */
 #define HB_OT_TAG_MATH_SCRIPT HB_TAG('m','a','t','h')
 
@@ -215,7 +215,7 @@ typedef enum {
  *
  * Data type to hold math kerning (cut-in) information for a glyph.
  *
- * Since: 3.4.0
+ * Since: REPLACEME
  */
 typedef struct {
   hb_position_t max_correction_height;
