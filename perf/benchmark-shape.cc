@@ -3,7 +3,6 @@
 
 #include "hb.h"
 
-
 struct test_input_t
 {
   const char *text_path;
@@ -28,7 +27,6 @@ struct test_input_t
   {"perf/texts/en-words.txt",
    "perf/fonts/Roboto-Regular.ttf"},
 };
-
 
 static void BM_Shape (benchmark::State &state, const test_input_t &input)
 {
