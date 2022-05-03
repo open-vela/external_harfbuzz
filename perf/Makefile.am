@@ -6,7 +6,9 @@ SUBDIRS =
 
 EXTRA_DIST +=
 	meson.build \
-	benchmark-font.cc \
+	perf-draw.hh \
+	perf-extents.hh \
+	perf.cc \
 	benchmark-map.cc \
 	benchmark-set.cc \
 	benchmark-shape.cc \

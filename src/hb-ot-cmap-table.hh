@@ -44,7 +44,7 @@ struct CmapSubtableFormat0
   bool get_glyph (hb_codepoint_t codepoint, hb_codepoint_t *glyph) const
   {
     hb_codepoint_t gid = codepoint < 256 ? glyphIdArray[codepoint] : 0;
-    if (unlikely (!gid))
+    if (!gid)
       return false;
     *glyph = gid;
     return true;
@@ -332,7 +332,6 @@ struct CmapSubtableFormat4
     if (unlikely (!c->extend_min (this))) return;
     this->format = 4;
 
-    // TODO(grieger): does pre-alloc make this faster?
     hb_vector_t<hb_pair_t<hb_codepoint_t, hb_codepoint_t>> cp_to_gid {
       format4_iter
     };
@@ -414,7 +413,7 @@ struct CmapSubtableFormat4
 					  2,
 					  _hb_cmp_method<hb_codepoint_t, CustomRange, unsigned>,
 					  this->segCount + 1);
-      if (unlikely (!found))
+      if (!found)
 	return false;
       unsigned int i = found - endCount;
 
@@ -434,7 +433,7 @@ struct CmapSubtableFormat4
 	gid += this->idDelta[i];
       }
       gid &= 0xFFFFu;
-      if (unlikely (!gid))
+      if (!gid)
 	return false;
       *glyph = gid;
       return true;
@@ -637,7 +636,7 @@ struct CmapSubtableTrimmed
   {
     /* Rely on our implicit array bound-checking. */
     hb_codepoint_t gid = glyphIdArray[codepoint - startCharCode];
-    if (unlikely (!gid))
+    if (!gid)
       return false;
     *glyph = gid;
     return true;
@@ -691,7 +690,7 @@ struct CmapSubtableTrimmed
 };
 
 struct CmapSubtableFormat6  : CmapSubtableTrimmed<HBUINT16> {};
-struct CmapSubtableFormat10 : CmapSubtableTrimmed<HBUINT32> {};
+struct CmapSubtableFormat10 : CmapSubtableTrimmed<HBUINT32 > {};
 
 template <typename T>
 struct CmapSubtableLongSegmented
@@ -701,7 +700,7 @@ struct CmapSubtableLongSegmented
   bool get_glyph (hb_codepoint_t codepoint, hb_codepoint_t *glyph) const
   {
     hb_codepoint_t gid = T::group_get_glyph (groups.bsearch (codepoint), codepoint);
-    if (unlikely (!gid))
+    if (!gid)
       return false;
     *glyph = gid;
     return true;
@@ -1664,13 +1663,7 @@ struct cmap
     if (unlikely (has_format12 && (!unicode_ucs4 && !ms_ucs4))) return_trace (false);
 
     auto it =
-    + hb_iter (c->plan->unicodes)
-    | hb_map ([&] (hb_codepoint_t _)
-	      {
-		hb_codepoint_t new_gid = HB_MAP_VALUE_INVALID;
-		c->plan->new_gid_for_codepoint (_, &new_gid);
-		return hb_pair_t<hb_codepoint_t, hb_codepoint_t> (_, new_gid);
-	      })
+    + c->plan->unicode_to_new_gid_list.iter ()
     | hb_filter ([&] (const hb_pair_t<hb_codepoint_t, hb_codepoint_t> _)
 		 { return (_.second != HB_MAP_VALUE_INVALID); })
     ;
