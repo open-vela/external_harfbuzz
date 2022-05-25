@@ -1623,9 +1623,6 @@ DEFINE_NULL_INSTANCE (hb_font_t) =
 {
   HB_OBJECT_HEADER_STATIC,
 
-  0, /* serial */
-  0, /* serial_coords */
-
   nullptr, /* parent */
   const_cast<hb_face_t *> (&_hb_Null_hb_face_t),
 
@@ -1855,9 +1852,6 @@ hb_font_set_user_data (hb_font_t          *font,
 		       hb_destroy_func_t   destroy /* May be NULL. */,
 		       hb_bool_t           replace)
 {
-  if (!hb_object_is_immutable (font))
-    font->serial++;
-
   return hb_object_set_user_data (font, key, data, destroy, replace);
 }
 
@@ -1917,45 +1911,6 @@ hb_font_is_immutable (hb_font_t *font)
 }
 
 /**
- * hb_font_get_serial:
- * @font: #hb_font_t to work upon
- *
- * Returns the internal serial number of the font. The serial
- * number is increased every time a setting on the font is
- * changed, using a setter function.
- *
- * Return value: serial number
- *
- * Since: REPLACEME.
- **/
-unsigned int
-hb_font_get_serial (hb_font_t *font)
-{
-  return font->serial;
-}
-
-/**
- * hb_font_changed:
- * @font: #hb_font_t to work upon
- *
- * Notifies the @font that underlying font data has changed.
- * This has the effect of increasing the serial as returned
- * by hb_font_get_serial(), which invalidates internal caches.
- *
- * Since: REPLACEME.
- **/
-void
-hb_font_changed (hb_font_t *font)
-{
-  if (hb_object_is_immutable (font))
-    return;
-
-  font->serial++;
-
-  font->mults_changed ();
-}
-
-/**
  * hb_font_set_parent:
  * @font: #hb_font_t to work upon
  * @parent: The parent font object to assign
@@ -1970,11 +1925,6 @@ hb_font_set_parent (hb_font_t *font,
 {
   if (hb_object_is_immutable (font))
     return;
-
-  if (parent == font->parent)
-    return;
-
-  font->serial++;
 
   if (!parent)
     parent = hb_font_get_empty ();
@@ -2017,11 +1967,6 @@ hb_font_set_face (hb_font_t *font,
 {
   if (hb_object_is_immutable (font))
     return;
-
-  if (face == font->face)
-    return;
-
-  font->serial++;
 
   if (unlikely (!face))
     face = hb_face_get_empty ();
@@ -2077,8 +2022,6 @@ hb_font_set_funcs (hb_font_t         *font,
     return;
   }
 
-  font->serial++;
-
   if (font->destroy)
     font->destroy (font->user_data);
 
@@ -2116,8 +2059,6 @@ hb_font_set_funcs_data (hb_font_t         *font,
     return;
   }
 
-  font->serial++;
-
   if (font->destroy)
     font->destroy (font->user_data);
 
@@ -2143,11 +2084,6 @@ hb_font_set_scale (hb_font_t *font,
 {
   if (hb_object_is_immutable (font))
     return;
-
-  if (font->x_scale == x_scale && font->y_scale == y_scale)
-    return;
-
-  font->serial++;
 
   font->x_scale = x_scale;
   font->y_scale = y_scale;
@@ -2191,11 +2127,6 @@ hb_font_set_ppem (hb_font_t    *font,
   if (hb_object_is_immutable (font))
     return;
 
-  if (font->x_ppem == x_ppem && font->y_ppem == y_ppem)
-    return;
-
-  font->serial++;
-
   font->x_ppem = x_ppem;
   font->y_ppem = y_ppem;
 }
@@ -2237,11 +2168,6 @@ hb_font_set_ptem (hb_font_t *font,
 {
   if (hb_object_is_immutable (font))
     return;
-
-  if (font->ptem == ptem)
-    return;
-
-  font->serial++;
 
   font->ptem = ptem;
 }
@@ -2290,11 +2216,6 @@ hb_font_set_synthetic_slant (hb_font_t *font, float slant)
   if (hb_object_is_immutable (font))
     return;
 
-  if (font->slant == slant)
-    return;
-
-  font->serial++;
-
   font->slant = slant;
   font->mults_changed ();
 }
@@ -2341,8 +2262,6 @@ hb_font_set_variations (hb_font_t            *font,
 {
   if (hb_object_is_immutable (font))
     return;
-
-  font->serial_coords = ++font->serial;
 
   if (!variations_length)
   {
@@ -2403,8 +2322,6 @@ hb_font_set_var_coords_design (hb_font_t    *font,
   if (hb_object_is_immutable (font))
     return;
 
-  font->serial_coords = ++font->serial;
-
   int *normalized = coords_length ? (int *) hb_calloc (coords_length, sizeof (int)) : nullptr;
   float *design_coords = coords_length ? (float *) hb_calloc (coords_length, sizeof (float)) : nullptr;
 
@@ -2437,8 +2354,6 @@ hb_font_set_var_named_instance (hb_font_t *font,
 {
   if (hb_object_is_immutable (font))
     return;
-
-  font->serial_coords = ++font->serial;
 
   unsigned int coords_length = hb_ot_var_named_instance_get_design_coords (font->face, instance_index, nullptr, nullptr);
 
@@ -2475,8 +2390,6 @@ hb_font_set_var_coords_normalized (hb_font_t    *font,
 {
   if (hb_object_is_immutable (font))
     return;
-
-  font->serial_coords = ++font->serial;
 
   int *copy = coords_length ? (int *) hb_calloc (coords_length, sizeof (coords[0])) : nullptr;
   int *unmapped = coords_length ? (int *) hb_calloc (coords_length, sizeof (coords[0])) : nullptr;
