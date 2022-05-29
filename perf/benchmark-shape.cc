@@ -5,8 +5,6 @@
 #include "config.h"
 #endif
 
-#include <cassert>
-
 #include "hb.h"
 #include "hb-ot.h"
 #ifdef HAVE_FREETYPE
@@ -55,8 +53,8 @@ struct test_input_t
    true},
 };
 
-static test_input_t *tests = default_tests;
-static unsigned num_tests = sizeof (default_tests) / sizeof (default_tests[0]);
+test_input_t *tests = default_tests;
+unsigned num_tests = sizeof (default_tests) / sizeof (default_tests[0]);
 
 enum backend_t { HARFBUZZ, FREETYPE };
 

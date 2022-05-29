@@ -3,7 +3,6 @@
  */
 #include "benchmark/benchmark.h"
 
-#include <cassert>
 #include <cstdlib>
 #include "hb.h"
 
