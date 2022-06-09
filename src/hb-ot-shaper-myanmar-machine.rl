@@ -29,18 +29,6 @@
 
 #include "hb.hh"
 
-#include "hb-ot-layout.hh"
-#include "hb-ot-shaper-indic.hh"
-
-/* buffer var allocations */
-#define myanmar_category() indic_category() /* myanmar_category_t */
-#define myanmar_position() indic_position() /* myanmar_position_t */
-
-using myanmar_category_t = ot_category_t;
-using myanmar_position_t = ot_position_t;
-
-#define M_Cat(Cat) myanmar_syllable_machine_ex_##Cat
-
 enum myanmar_syllable_type_t {
   myanmar_consonant_syllable,
   myanmar_punctuation_cluster,
@@ -57,39 +45,32 @@ enum myanmar_syllable_type_t {
 
 %%{
 
-
-# These values are replicated from indic.hh, and relisted in myanmar.cc; keep in sync.
-
-export C    = 1;
-export IV   = 2;
-export DB   = 3;	# Dot below	     = OT_N
-export H    = 4;
-export ZWNJ = 5;
-export ZWJ  = 6;
-export SM    = 8;	# Visarga and Shan tones
-export GB   = 10;	# 		     = OT_PLACEHOLDER
-export DOTTEDCIRCLE = 11;
 export A    = 9;
+export As   = 18;
+export C    = 1;
+export D    = 10;
+export D0   = 20;
+export DB   = 3;
+export GB   = 10;
+export H    = 4;
+export IV   = 2;
+export MH   = 21;
+export ML   = 32;
+export MR   = 22;
+export MW   = 23;
+export MY   = 24;
+export PT   = 25;
+export V    = 8;
+export VAbv = 26;
+export VBlw = 27;
+export VPre = 28;
+export VPst = 29;
+export VS   = 30;
+export ZWJ  = 6;
+export ZWNJ = 5;
 export Ra   = 15;
-export CS   = 18;
-
-export VAbv = 20;
-export VBlw = 21;
-export VPre = 22;
-export VPst = 23;
-
-export As   = 32;	# Asat
-export D    = 33;	# Digits except zero
-export D0   = 34;	# Digit zero
-export MH   = 35;	# Medial
-export MR   = 36;	# Medial
-export MW   = 37;	# Medial
-export MY   = 38;	# Medial
-export PT   = 39;	# Pwo and other tones
-export VS   = 40;	# Variation selectors
-export P    = 41;	# Punctuation
-export ML   = 42;	# Consonant medials
-
+export P    = 31;
+export CS   = 19;
 
 j = ZWJ|ZWNJ;			# Joiners
 k = (Ra As H);			# Kinzi
@@ -101,11 +82,11 @@ main_vowel_group = (VPre.VS?)* VAbv* VBlw* A* (DB As?)?;
 post_vowel_group = VPst MH? ML? As* VAbv* A* (DB As?)?;
 pwo_tone_group = PT A* DB? As?;
 
-complex_syllable_tail = As* medial_group main_vowel_group post_vowel_group* pwo_tone_group* SM* j?;
+complex_syllable_tail = As* medial_group main_vowel_group post_vowel_group* pwo_tone_group* V* j?;
 syllable_tail = (H (c|IV).VS?)* (H | complex_syllable_tail);
 
-consonant_syllable =	(k|CS)? (c|IV|D|GB|DOTTEDCIRCLE).VS? syllable_tail;
-punctuation_cluster =	P SM;
+consonant_syllable =	(k|CS)? (c|IV|D|GB).VS? syllable_tail;
+punctuation_cluster =	P V;
 broken_cluster =	k? VS? syllable_tail;
 other =			any;
 
@@ -113,7 +94,7 @@ main := |*
 	consonant_syllable	=> { found_syllable (myanmar_consonant_syllable); };
 	j			=> { found_syllable (myanmar_non_myanmar_cluster); };
 	punctuation_cluster	=> { found_syllable (myanmar_punctuation_cluster); };
-	broken_cluster		=> { found_syllable (myanmar_broken_cluster); };
+	broken_cluster		=> { found_syllable (myanmar_broken_cluster); buffer->scratch_flags |= HB_BUFFER_SCRATCH_FLAG_HAS_BROKEN_SYLLABLE; };
 	other			=> { found_syllable (myanmar_non_myanmar_cluster); };
 *|;
 
