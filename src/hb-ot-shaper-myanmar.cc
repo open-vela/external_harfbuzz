@@ -28,50 +28,13 @@
 
 #ifndef HB_NO_OT_SHAPE
 
+#include "hb-ot-shaper-myanmar.hh"
 #include "hb-ot-shaper-myanmar-machine.hh"
-#include "hb-ot-shaper-indic.hh"
-#include "hb-ot-layout.hh"
 
 
 /*
  * Myanmar shaper.
  */
-
-
-#define M_Check(C) static_assert (OT_##C == M_Cat(C), "")
-
-M_Check (C);
-M_Check (IV);
-M_Check (DB);
-M_Check (H);
-M_Check (ZWNJ);
-M_Check (ZWJ);
-M_Check (SM);
-M_Check (GB);
-M_Check (DOTTEDCIRCLE);
-M_Check (A);
-M_Check (Ra);
-M_Check (CS);
-
-M_Check (VAbv);
-M_Check (VBlw);
-M_Check (VPre);
-M_Check (VPst);
-
-M_Check (As);
-M_Check (D);
-M_Check (D0);
-M_Check (MH);
-M_Check (MR);
-M_Check (MW);
-M_Check (MY);
-M_Check (PT);
-M_Check (VS);
-M_Check (P);
-M_Check (ML);
-
-#undef M_Check
-
 
 static const hb_tag_t
 myanmar_basic_features[] =
@@ -98,40 +61,6 @@ myanmar_other_features[] =
   HB_TAG('b','l','w','s'),
   HB_TAG('p','s','t','s'),
 };
-
-static inline void
-set_myanmar_properties (hb_glyph_info_t &info)
-{
-  hb_codepoint_t u = info.codepoint;
-  unsigned int type = hb_indic_get_categories (u);
-
-  info.myanmar_category() = (myanmar_category_t) (type & 0xFFu);
-}
-
-
-static inline bool
-is_one_of_myanmar (const hb_glyph_info_t &info, unsigned int flags)
-{
-  /* If it ligated, all bets are off. */
-  if (_hb_glyph_info_ligated (&info)) return false;
-  return !!(FLAG_UNSAFE (info.indic_category()) & flags);
-}
-
-/* Note:
- *
- * We treat Vowels and placeholders as if they were consonants.  This is safe because Vowels
- * cannot happen in a consonant syllable.  The plus side however is, we can call the
- * consonant syllable logic from the vowel syllable function and get it all right!
- *
- * Keep in sync with consonant_categories in the generator. */
-#define CONSONANT_FLAGS_MYANMAR (FLAG (M_Cat(C)) | FLAG (M_Cat(CS)) | FLAG (M_Cat(Ra)) | /* FLAG (M_Cat(CM)) | */ FLAG (M_Cat(IV)) | FLAG (M_Cat(GB)) | FLAG (M_Cat(DOTTEDCIRCLE)))
-
-static inline bool
-is_consonant_myanmar (const hb_glyph_info_t &info)
-{
-  return is_one_of_myanmar (info, CONSONANT_FLAGS_MYANMAR);
-}
-
 
 static void
 setup_syllables_myanmar (const hb_ot_shape_plan_t *plan,
@@ -202,7 +131,7 @@ compare_myanmar_order (const hb_glyph_info_t *pa, const hb_glyph_info_t *pb)
   int a = pa->myanmar_position();
   int b = pb->myanmar_position();
 
-  return (int) a - (int) b;
+  return a < b ? -1 : a == b ? 0 : +1;
 }
 
 
@@ -221,9 +150,9 @@ initial_reordering_consonant_syllable (hb_buffer_t *buffer,
   {
     unsigned int limit = start;
     if (start + 3 <= end &&
-	info[start  ].myanmar_category() == M_Cat(Ra) &&
-	info[start+1].myanmar_category() == M_Cat(As) &&
-	info[start+2].myanmar_category() == M_Cat(H))
+	info[start  ].myanmar_category() == OT_Ra &&
+	info[start+1].myanmar_category() == OT_As &&
+	info[start+2].myanmar_category() == OT_H)
     {
       limit += 3;
       base = start;
@@ -235,7 +164,7 @@ initial_reordering_consonant_syllable (hb_buffer_t *buffer,
 	base = limit;
 
       for (unsigned int i = limit; i < end; i++)
-	if (is_consonant_myanmar (info[i]))
+	if (is_consonant (info[i]))
 	{
 	  base = i;
 	  break;
@@ -260,40 +189,39 @@ initial_reordering_consonant_syllable (hb_buffer_t *buffer,
      * Myanmar reordering! */
     for (; i < end; i++)
     {
-      if (info[i].myanmar_category() == M_Cat(MR)) /* Pre-base reordering */
+      if (info[i].myanmar_category() == OT_MR) /* Pre-base reordering */
       {
 	info[i].myanmar_position() = POS_PRE_C;
 	continue;
       }
-      if (info[i].myanmar_category() == M_Cat(VPre)) /* Left matra */
+      if (info[i].myanmar_position() < POS_BASE_C) /* Left matra */
       {
-	info[i].myanmar_position() = POS_PRE_M;
 	continue;
       }
-      if (info[i].myanmar_category() == M_Cat(VS))
+      if (info[i].myanmar_category() == OT_VS)
       {
 	info[i].myanmar_position() = info[i - 1].myanmar_position();
 	continue;
       }
 
-      if (pos == POS_AFTER_MAIN && info[i].myanmar_category() == M_Cat(VBlw))
+      if (pos == POS_AFTER_MAIN && info[i].myanmar_category() == OT_VBlw)
       {
 	pos = POS_BELOW_C;
 	info[i].myanmar_position() = pos;
 	continue;
       }
 
-      if (pos == POS_BELOW_C && info[i].myanmar_category() == M_Cat(A))
+      if (pos == POS_BELOW_C && info[i].myanmar_category() == OT_A)
       {
 	info[i].myanmar_position() = POS_BEFORE_SUB;
 	continue;
       }
-      if (pos == POS_BELOW_C && info[i].myanmar_category() == M_Cat(VBlw))
+      if (pos == POS_BELOW_C && info[i].myanmar_category() == OT_VBlw)
       {
 	info[i].myanmar_position() = pos;
 	continue;
       }
-      if (pos == POS_BELOW_C && info[i].myanmar_category() != M_Cat(A))
+      if (pos == POS_BELOW_C && info[i].myanmar_category() != OT_A)
       {
 	pos = POS_AFTER_SUB;
 	info[i].myanmar_position() = pos;
@@ -336,7 +264,7 @@ reorder_myanmar (const hb_ot_shape_plan_t *plan,
   {
     hb_syllabic_insert_dotted_circles (font, buffer,
 				       myanmar_broken_cluster,
-				       M_Cat(DOTTEDCIRCLE));
+				       OT_GB);
 
     foreach_syllable (buffer, start, end)
       reorder_syllable_myanmar (plan, font->face, buffer, start, end);
