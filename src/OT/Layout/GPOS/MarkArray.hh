@@ -97,11 +97,10 @@ struct MarkArray : Array16Of<MarkRecord>        /* Array of MarkRecords--in Cove
   }
 };
 
-HB_INTERNAL inline
-void Markclass_closure_and_remap_indexes (const Coverage  &mark_coverage,
-                                          const MarkArray &mark_array,
-                                          const hb_set_t  &glyphset,
-                                          hb_map_t*        klass_mapping /* INOUT */)
+static void Markclass_closure_and_remap_indexes (const Coverage  &mark_coverage,
+                                                 const MarkArray &mark_array,
+                                                 const hb_set_t  &glyphset,
+                                                 hb_map_t*        klass_mapping /* INOUT */)
 {
   hb_set_t orig_classes;
 
