@@ -980,6 +980,7 @@ hb_buffer_get_unicode_funcs (const hb_buffer_t *buffer)
 void
 hb_buffer_set_direction (hb_buffer_t    *buffer,
 			 hb_direction_t  direction)
+
 {
   if (unlikely (hb_object_is_immutable (buffer)))
     return;
@@ -1841,9 +1842,7 @@ hb_buffer_add_latin1 (hb_buffer_t   *buffer,
  * marks at stat of run.
  *
  * This function does not check the validity of @text, it is up to the caller
- * to ensure it contains a valid Unicode scalar values.  In contrast,
- * hb_buffer_add_utf32() can be used that takes similar input but performs
- * sanity-check on the input.
+ * to ensure it contains a valid Unicode code points.
  *
  * Since: 0.9.31
  **/
@@ -2096,7 +2095,7 @@ hb_buffer_diff (hb_buffer_t *buffer,
       result |= HB_BUFFER_DIFF_FLAG_CODEPOINT_MISMATCH;
     if (buf_info->cluster != ref_info->cluster)
       result |= HB_BUFFER_DIFF_FLAG_CLUSTER_MISMATCH;
-    if ((buf_info->mask ^ ref_info->mask) & HB_GLYPH_FLAG_DEFINED)
+    if ((buf_info->mask & ~ref_info->mask & HB_GLYPH_FLAG_DEFINED))
       result |= HB_BUFFER_DIFF_FLAG_GLYPH_FLAGS_MISMATCH;
     if (contains && ref_info->codepoint == dottedcircle_glyph)
       result |= HB_BUFFER_DIFF_FLAG_DOTTED_CIRCLE_PRESENT;
@@ -2151,13 +2150,6 @@ hb_buffer_set_message_func (hb_buffer_t *buffer,
 			    hb_buffer_message_func_t func,
 			    void *user_data, hb_destroy_func_t destroy)
 {
-  if (unlikely (hb_object_is_immutable (buffer)))
-  {
-    if (destroy)
-      destroy (user_data);
-    return;
-  }
-
   if (buffer->message_destroy)
     buffer->message_destroy (buffer->message_data);
 

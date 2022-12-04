@@ -42,15 +42,11 @@ struct glyf
   bool serialize (hb_serialize_context_t *c,
 		  Iterator it,
                   bool use_short_loca,
-		  const hb_subset_plan_t *plan,
-		  hb_font_t *font)
+		  const hb_subset_plan_t *plan)
   {
     TRACE_SERIALIZE (this);
-
     unsigned init_len = c->length ();
-    for (auto &_ : it)
-      if (unlikely (!_.serialize (c, use_short_loca, plan, font)))
-        return false;
+    for (const auto &_ : it) _.serialize (c, use_short_loca, plan);
 
     /* As a special case when all glyph in the font are empty, add a zero byte
      * to the table, so that OTS doesn’t reject it, and to make the table work
@@ -78,11 +74,10 @@ struct glyf
     hb_vector_t<glyf_impl::SubsetGlyph> glyphs;
     _populate_subset_glyphs (c->plan, glyphs);
 
-    hb_font_t *font = nullptr;
     if (!c->plan->pinned_at_default)
     {
-      font = _create_font_for_instancing (c->plan);
-      if (unlikely (!font)) return false;
+      if (!_compile_subset_glyphs_with_deltas (c->plan, &glyphs))
+        return_trace (false);
     }
 
     auto padded_offsets =
@@ -90,14 +85,11 @@ struct glyf
     | hb_map (&glyf_impl::SubsetGlyph::padded_size)
     ;
 
-    bool use_short_loca = false;
-    if (likely (!c->plan->force_long_loca))
-    {
-      unsigned max_offset = + padded_offsets | hb_reduce (hb_add, 0);
-      use_short_loca = max_offset < 0x1FFFF;
-    }
+    unsigned max_offset = + padded_offsets | hb_reduce (hb_add, 0);
+    bool use_short_loca = max_offset < 0x1FFFF;
 
-    glyf_prime->serialize (c->serializer, glyphs.writer (), use_short_loca, c->plan, font);
+
+    glyf_prime->serialize (c->serializer, hb_iter (glyphs), use_short_loca, c->plan);
     if (!use_short_loca) {
       padded_offsets =
           + hb_iter (glyphs)
@@ -105,12 +97,9 @@ struct glyf
           ;
     }
 
-    if (font)
-    {
-      _free_compiled_subset_glyphs (&glyphs);
-      hb_font_destroy (font);
-    }
 
+    if (!c->plan->pinned_at_default)
+      _free_compiled_subset_glyphs (&glyphs);
     if (unlikely (c->serializer->in_error ())) return_trace (false);
     return_trace (c->serializer->check_success (glyf_impl::_add_loca_and_head (c->plan,
 									       padded_offsets,
@@ -121,8 +110,9 @@ struct glyf
   _populate_subset_glyphs (const hb_subset_plan_t   *plan,
 			   hb_vector_t<glyf_impl::SubsetGlyph> &glyphs /* OUT */) const;
 
-  hb_font_t *
-  _create_font_for_instancing (const hb_subset_plan_t *plan) const;
+  bool
+  _compile_subset_glyphs_with_deltas (const hb_subset_plan_t *plan,
+                                      hb_vector_t<glyf_impl::SubsetGlyph> *glyphs /* OUT */) const;
 
   void _free_compiled_subset_glyphs (hb_vector_t<glyf_impl::SubsetGlyph> *glyphs) const
   {
@@ -417,15 +407,17 @@ glyf::_populate_subset_glyphs (const hb_subset_plan_t   *plan,
   }
 }
 
-inline hb_font_t *
-glyf::_create_font_for_instancing (const hb_subset_plan_t *plan) const
+inline bool
+glyf::_compile_subset_glyphs_with_deltas (const hb_subset_plan_t *plan,
+                                          hb_vector_t<glyf_impl::SubsetGlyph> *glyphs /* OUT */) const
 {
+  OT::glyf_accelerator_t glyf (plan->source);
   hb_font_t *font = hb_font_create (plan->source);
-  if (unlikely (font == hb_font_get_empty ())) return nullptr;
+  if (unlikely (font == hb_font_get_empty ())) return false;
 
   hb_vector_t<hb_variation_t> vars;
   if (unlikely (!vars.alloc (plan->user_axes_location->get_population ())))
-    return nullptr;
+    return false;
 
   for (auto _ : *plan->user_axes_location)
   {
@@ -436,7 +428,17 @@ glyf::_create_font_for_instancing (const hb_subset_plan_t *plan) const
   }
 
   hb_font_set_variations (font, vars.arrayZ, plan->user_axes_location->get_population ());
-  return font;
+  for (auto& subset_glyph : *glyphs)
+  {
+    if (!const_cast<glyf_impl::SubsetGlyph &> (subset_glyph).compile_bytes_with_deltas (plan, font, glyf))
+    {
+      hb_font_destroy (font);
+      return false;
+    }
+  }
+
+  hb_font_destroy (font);
+  return true;
 }
 
 

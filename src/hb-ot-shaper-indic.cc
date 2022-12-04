@@ -715,9 +715,6 @@ initial_reordering_consonant_syllable (const hb_ot_shape_plan_t *plan,
 	    }
 	}
       } else if (info[i].indic_position() != POS_SMVD) {
-	if (info[i].indic_category() == I_Cat(MPst) &&
-	    i > start && info[i - 1].indic_category() == I_Cat(SM))
-	  info[i - 1].indic_position() = info[i].indic_position();
 	last_pos = (indic_position_t) info[i].indic_position();
       }
     }
@@ -733,7 +730,7 @@ initial_reordering_consonant_syllable (const hb_ot_shape_plan_t *plan,
 	  if (info[j].indic_position() < POS_SMVD)
 	    info[j].indic_position() = info[i].indic_position();
 	last = i;
-      } else if (FLAG_UNSAFE (info[i].indic_category()) & (FLAG (I_Cat(M)) | FLAG (I_Cat(MPst))))
+      } else if (info[i].indic_category() == I_Cat(M))
 	last = i;
   }
 
@@ -773,7 +770,7 @@ initial_reordering_consonant_syllable (const hb_ot_shape_plan_t *plan,
       /* Reverse back nuktas, etc. */
       unsigned i = first_left_matra;
       for (unsigned j = i; j <= last_left_matra; j++)
-	if (FLAG_UNSAFE (info[j].indic_category()) & (FLAG (I_Cat(M)) | FLAG (I_Cat(MPst))))
+        if (info[j].indic_category() == I_Cat(M))
 	{
 	  buffer->reverse_range (i, j + 1);
 	  i = j + 1;
@@ -1150,7 +1147,7 @@ final_reordering_syllable_indic (const hb_ot_shape_plan_t *plan,
     {
     search:
       while (new_pos > start &&
-	     !(is_one_of (info[new_pos], (FLAG (I_Cat(M)) | FLAG (I_Cat(MPst)) | FLAG (I_Cat(H))))))
+	     !(is_one_of (info[new_pos], (FLAG (I_Cat(M)) | FLAG (I_Cat(H))))))
 	new_pos--;
 
       /* If we found no Halant we are done.
@@ -1350,8 +1347,7 @@ final_reordering_syllable_indic (const hb_ot_shape_plan_t *plan,
 	  unlikely (is_halant (info[new_reph_pos])))
       {
 	for (unsigned int i = base + 1; i < new_reph_pos; i++)
-	  if (FLAG_UNSAFE (info[i].indic_category()) & (FLAG (I_Cat(M)) | FLAG (I_Cat(MPst))))
-	  {
+	  if (info[i].indic_category() == I_Cat(M)) {
 	    /* Ok, got it. */
 	    new_reph_pos--;
 	  }
@@ -1411,7 +1407,7 @@ final_reordering_syllable_indic (const hb_ot_shape_plan_t *plan,
 	  if (buffer->props.script != HB_SCRIPT_MALAYALAM && buffer->props.script != HB_SCRIPT_TAMIL)
 	  {
 	    while (new_pos > start &&
-		   !(is_one_of (info[new_pos - 1], FLAG (I_Cat(M)) | FLAG (I_Cat(MPst)) | FLAG (I_Cat(H)))))
+		   !(is_one_of (info[new_pos - 1], FLAG(I_Cat(M)) | FLAG (I_Cat(H)))))
 	      new_pos--;
 	  }
 

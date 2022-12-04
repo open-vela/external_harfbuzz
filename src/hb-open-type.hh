@@ -493,10 +493,10 @@ struct UnsizedArrayOf
   void qsort (unsigned int len, unsigned int start = 0, unsigned int end = (unsigned int) -1)
   { as_array (len).qsort (start, end); }
 
-  bool serialize (hb_serialize_context_t *c, unsigned int items_len, bool clear = true)
+  bool serialize (hb_serialize_context_t *c, unsigned int items_len)
   {
     TRACE_SERIALIZE (this);
-    if (unlikely (!c->extend_size (this, get_size (items_len), clear))) return_trace (false);
+    if (unlikely (!c->extend (this, items_len))) return_trace (false);
     return_trace (true);
   }
   template <typename Iterator,
@@ -504,8 +504,8 @@ struct UnsizedArrayOf
   bool serialize (hb_serialize_context_t *c, Iterator items)
   {
     TRACE_SERIALIZE (this);
-    unsigned count = hb_len (items);
-    if (unlikely (!serialize (c, count, false))) return_trace (false);
+    unsigned count = items.len ();
+    if (unlikely (!serialize (c, count))) return_trace (false);
     /* TODO Umm. Just exhaust the iterator instead?  Being extra
      * cautious right now.. */
     for (unsigned i = 0; i < count; i++, ++items)
@@ -646,10 +646,6 @@ struct ArrayOf
   operator   iter_t () const { return   iter (); }
   operator writer_t ()       { return writer (); }
 
-  /* Faster range-based for loop. */
-  const Type *begin () const { return arrayZ; }
-  const Type *end () const { return arrayZ + len; }
-
   template <typename T>
   Type &lsearch (const T &x, Type &not_found = Crap (Type))
   { return *as_array ().lsearch (x, &not_found); }
@@ -665,12 +661,12 @@ struct ArrayOf
   void qsort ()
   { as_array ().qsort (); }
 
-  HB_NODISCARD bool serialize (hb_serialize_context_t *c, unsigned items_len, bool clear = true)
+  HB_NODISCARD bool serialize (hb_serialize_context_t *c, unsigned items_len)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (this))) return_trace (false);
     c->check_assign (len, items_len, HB_SERIALIZE_ERROR_ARRAY_OVERFLOW);
-    if (unlikely (!c->extend_size (this, get_size (), clear))) return_trace (false);
+    if (unlikely (!c->extend (this))) return_trace (false);
     return_trace (true);
   }
   template <typename Iterator,
@@ -678,8 +674,8 @@ struct ArrayOf
   HB_NODISCARD bool serialize (hb_serialize_context_t *c, Iterator items)
   {
     TRACE_SERIALIZE (this);
-    unsigned count = hb_len (items);
-    if (unlikely (!serialize (c, count, false))) return_trace (false);
+    unsigned count = items.len ();
+    if (unlikely (!serialize (c, count))) return_trace (false);
     /* TODO Umm. Just exhaust the iterator instead?  Being extra
      * cautious right now.. */
     for (unsigned i = 0; i < count; i++, ++items)
@@ -823,25 +819,21 @@ struct HeadlessArrayOf
   operator   iter_t () const { return   iter (); }
   operator writer_t ()       { return writer (); }
 
-  /* Faster range-based for loop. */
-  const Type *begin () const { return arrayZ; }
-  const Type *end () const { return arrayZ + get_length (); }
-
-  HB_NODISCARD bool serialize (hb_serialize_context_t *c, unsigned int items_len, bool clear = true)
+  bool serialize (hb_serialize_context_t *c, unsigned int items_len)
   {
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (this))) return_trace (false);
     c->check_assign (lenP1, items_len + 1, HB_SERIALIZE_ERROR_ARRAY_OVERFLOW);
-    if (unlikely (!c->extend_size (this, get_size (), clear))) return_trace (false);
+    if (unlikely (!c->extend (this))) return_trace (false);
     return_trace (true);
   }
   template <typename Iterator,
 	    hb_requires (hb_is_source_of (Iterator, Type))>
-  HB_NODISCARD bool serialize (hb_serialize_context_t *c, Iterator items)
+  bool serialize (hb_serialize_context_t *c, Iterator items)
   {
     TRACE_SERIALIZE (this);
-    unsigned count = hb_len (items);
-    if (unlikely (!serialize (c, count, false))) return_trace (false);
+    unsigned count = items.len ();
+    if (unlikely (!serialize (c, count))) return_trace (false);
     /* TODO Umm. Just exhaust the iterator instead?  Being extra
      * cautious right now.. */
     for (unsigned i = 0; i < count; i++, ++items)
@@ -942,10 +934,6 @@ struct SortedArrayOf : ArrayOf<Type, LenType>
   writer_t writer ()       { return as_array (); }
   operator   iter_t () const { return   iter (); }
   operator writer_t ()       { return writer (); }
-
-  /* Faster range-based for loop. */
-  const Type *begin () const { return this->arrayZ; }
-  const Type *end () const { return this->arrayZ + this->len; }
 
   bool serialize (hb_serialize_context_t *c, unsigned int items_len)
   {

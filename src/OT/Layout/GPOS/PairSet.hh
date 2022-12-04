@@ -112,25 +112,17 @@ struct PairSet
       if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
       {
 	c->buffer->message (c->font,
-			    "try kerning glyphs at %d,%d",
+			    "kerning glyphs at %d,%d",
 			    c->buffer->idx, pos);
       }
 
       bool applied_first = valueFormats[0].apply_value (c, this, &record->values[0], buffer->cur_pos());
       bool applied_second = valueFormats[1].apply_value (c, this, &record->values[len1], buffer->pos[pos]);
 
-      if (applied_first || applied_second)
-	if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
-	{
-	  c->buffer->message (c->font,
-			      "kerned glyphs at %d,%d",
-			      c->buffer->idx, pos);
-	}
-
       if (HB_BUFFER_MESSAGE_MORE && c->buffer->messaging ())
       {
 	c->buffer->message (c->font,
-			    "tried kerning glyphs at %d,%d",
+			    "kerned glyphs at %d,%d",
 			    c->buffer->idx, pos);
       }
 
@@ -140,9 +132,8 @@ struct PairSet
       if (len2)
       {
 	pos++;
-      // https://github.com/harfbuzz/harfbuzz/issues/3824
-      // https://github.com/harfbuzz/harfbuzz/issues/3888#issuecomment-1326781116
-      buffer->unsafe_to_break (buffer->idx, pos + 1);
+	// https://github.com/harfbuzz/harfbuzz/issues/3824
+	buffer->unsafe_to_break (pos - 1, pos + 1);
       }
 
       buffer->idx = pos;

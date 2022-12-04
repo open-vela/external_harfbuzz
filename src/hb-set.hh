@@ -105,8 +105,10 @@ struct hb_sparseset_t
   bool get (hb_codepoint_t g) const { return s.get (g); }
 
   /* Has interface. */
-  bool operator [] (hb_codepoint_t k) const { return get (k); }
-  bool has (hb_codepoint_t k) const { return (*this)[k]; }
+  static constexpr bool SENTINEL = false;
+  typedef bool value_t;
+  value_t operator [] (hb_codepoint_t k) const { return get (k); }
+  bool has (hb_codepoint_t k) const { return (*this)[k] != SENTINEL; }
 
   /* Predicate. */
   bool operator () (hb_codepoint_t k) const { return has (k); }

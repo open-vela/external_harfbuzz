@@ -77,14 +77,7 @@ struct CoverageFormat1_3
 
   bool intersects (const hb_set_t *glyphs) const
   {
-    if (glyphArray.len > glyphs->get_population () * hb_bit_storage ((unsigned) glyphArray.len) / 2)
-    {
-      for (hb_codepoint_t g = HB_SET_VALUE_INVALID; glyphs->next (&g);)
-        if (get_coverage (g) != NOT_COVERED)
-	  return true;
-      return false;
-    }
-
+    /* TODO Speed up, using hb_set_next() and bsearch()? */
     for (const auto& g : glyphArray.as_array ())
       if (glyphs->has (g))
         return true;

@@ -499,25 +499,19 @@ _subset_table (hb_subset_plan_t *plan,
   }
 }
 
-static void _attach_accelerator_data (hb_subset_plan_t* plan,
+static void _attach_accelerator_data (const hb_subset_plan_t* plan,
                                       hb_face_t* face /* IN/OUT */)
 {
-  if (!plan->inprogress_accelerator) return;
-
-  // Transfer the accelerator from the plan to us.
-  hb_subset_accelerator_t* accel = plan->inprogress_accelerator;
-  plan->inprogress_accelerator = nullptr;
+  hb_subset_accelerator_t* accel =
+      hb_subset_accelerator_t::create (*plan->codepoint_to_glyph,
+                                       *plan->unicodes,
+				       plan->has_seac);
 
   if (accel->in_error ())
   {
     hb_subset_accelerator_t::destroy (accel);
     return;
   }
-
-  // Populate caches that need access to the final tables.
-  hb_blob_ptr_t<OT::cmap> cmap_ptr (hb_sanitize_context_t ().reference_table<OT::cmap> (face));
-  accel->cmap_cache = OT::cmap::create_filled_cache (cmap_ptr);
-  accel->destroy_cmap_cache = OT::SubtableUnicodesCache::destroy;
 
   if (!hb_face_set_user_data(face,
                              hb_subset_accelerator_t::user_data_key(),

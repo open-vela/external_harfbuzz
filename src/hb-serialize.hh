@@ -223,7 +223,6 @@ struct hb_serialize_context_t
     this->errors = HB_SERIALIZE_ERROR_NONE;
     this->head = this->start;
     this->tail = this->end;
-    this->zerocopy = nullptr;
     this->debug_depth = 0;
 
     fini ();
@@ -326,8 +325,7 @@ struct hb_serialize_context_t
     if (unlikely (in_error() && !only_overflow ())) return;
 
     current = current->next;
-    revert (zerocopy ? zerocopy : obj->head, obj->tail);
-    zerocopy = nullptr;
+    revert (obj->head, obj->tail);
     obj->fini ();
     object_pool.release (obj);
   }
@@ -345,11 +343,8 @@ struct hb_serialize_context_t
     current = current->next;
     obj->tail = head;
     obj->next = nullptr;
-    assert (obj->head <= obj->tail);
     unsigned len = obj->tail - obj->head;
-    head = zerocopy ? zerocopy : obj->head; /* Rewind head. */
-    bool was_zerocopy = zerocopy;
-    zerocopy = nullptr;
+    head = obj->head; /* Rewind head. */
 
     if (!len)
     {
@@ -359,7 +354,7 @@ struct hb_serialize_context_t
     }
 
     objidx_t objidx;
-    uint32_t hash = 0;
+    uint32_t hash;
     if (share)
     {
       hash = hb_hash (obj);
@@ -373,10 +368,7 @@ struct hb_serialize_context_t
     }
 
     tail -= len;
-    if (was_zerocopy)
-      assert (tail == obj->head);
-    else
-      memmove (tail, obj->head, len);
+    memmove (tail, obj->head, len);
 
     obj->head = tail;
     obj->tail = tail + len;
@@ -578,26 +570,8 @@ struct hb_serialize_context_t
     return !bool ((errors = (errors | err_type)));
   }
 
-  bool start_zerocopy (size_t size)
-  {
-    if (unlikely (in_error ())) return false;
-
-    if (unlikely (size > INT_MAX || this->tail - this->head < ptrdiff_t (size)))
-    {
-      err (HB_SERIALIZE_ERROR_OUT_OF_ROOM);
-      return false;
-    }
-
-    assert (!this->zerocopy);
-    this->zerocopy = this->head;
-
-    assert (this->current->head == this->head);
-    this->current->head = this->current->tail = this->head = this->tail - size;
-    return true;
-  }
-
   template <typename Type>
-  Type *allocate_size (size_t size, bool clear = true)
+  Type *allocate_size (size_t size)
   {
     if (unlikely (in_error ())) return nullptr;
 
@@ -606,8 +580,7 @@ struct hb_serialize_context_t
       err (HB_SERIALIZE_ERROR_OUT_OF_ROOM);
       return nullptr;
     }
-    if (clear)
-      hb_memset (this->head, 0, size);
+    hb_memset (this->head, 0, size);
     char *ret = this->head;
     this->head += size;
     return reinterpret_cast<Type *> (ret);
@@ -621,7 +594,7 @@ struct hb_serialize_context_t
   Type *embed (const Type *obj)
   {
     unsigned int size = obj->get_size ();
-    Type *ret = this->allocate_size<Type> (size, false);
+    Type *ret = this->allocate_size<Type> (size);
     if (unlikely (!ret)) return nullptr;
     hb_memcpy (ret, obj, size);
     return ret;
@@ -662,7 +635,7 @@ struct hb_serialize_context_t
   hb_serialize_context_t& operator << (const Type &obj) & { embed (obj); return *this; }
 
   template <typename Type>
-  Type *extend_size (Type *obj, size_t size, bool clear = true)
+  Type *extend_size (Type *obj, size_t size)
   {
     if (unlikely (in_error ())) return nullptr;
 
@@ -670,12 +643,12 @@ struct hb_serialize_context_t
     assert ((char *) obj <= this->head);
     assert ((size_t) (this->head - (char *) obj) <= size);
     if (unlikely (((char *) obj + size < (char *) obj) ||
-		  !this->allocate_size<Type> (((char *) obj) + size - this->head, clear))) return nullptr;
+		  !this->allocate_size<Type> (((char *) obj) + size - this->head))) return nullptr;
     return reinterpret_cast<Type *> (obj);
   }
   template <typename Type>
-  Type *extend_size (Type &obj, size_t size, bool clear = true)
-  { return extend_size (std::addressof (obj), size, clear); }
+  Type *extend_size (Type &obj, size_t size)
+  { return extend_size (std::addressof (obj), size); }
 
   template <typename Type>
   Type *extend_min (Type *obj) { return extend_size (obj, obj->min_size); }
@@ -732,7 +705,7 @@ struct hb_serialize_context_t
   }
 
   public:
-  char *start, *head, *tail, *end, *zerocopy;
+  char *start, *head, *tail, *end;
   unsigned int debug_depth;
   hb_serialize_error_t errors;
 
