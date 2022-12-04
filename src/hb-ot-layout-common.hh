@@ -980,16 +980,18 @@ struct RecordListOfFeature : RecordListOf<Feature>
     auto *out = c->serializer->start_embed (*this);
     if (unlikely (!out || !c->serializer->extend_min (out))) return_trace (false);
 
-    + hb_enumerate (*this)
-    | hb_filter (l->feature_index_map, hb_first)
-    | hb_apply ([l, out, this] (const hb_pair_t<unsigned, const Record<Feature>&>& _)
+    unsigned count = this->len;
+
+    + hb_zip (*this, hb_range (count))
+    | hb_filter (l->feature_index_map, hb_second)
+    | hb_apply ([l, out, this] (const hb_pair_t<const Record<Feature>&, unsigned>& _)
                 {
                   const Feature *f_sub = nullptr;
                   const Feature **f = nullptr;
-                  if (l->feature_substitutes_map->has (_.first, &f))
+                  if (l->feature_substitutes_map->has (_.second, &f))
                     f_sub = *f;
 
-                  subset_record_array (l, out, this, f_sub) (_.second);
+                  subset_record_array (l, out, this, f_sub) (_.first);
                 })
     ;
 
@@ -1145,6 +1147,7 @@ struct Script
 	return;
     }
 
+    unsigned langsys_count = get_lang_sys_count ();
     if (has_default_lang_sys ())
     {
       //only collect features from non-redundant langsys
@@ -1153,24 +1156,24 @@ struct Script
         d.collect_features (c);
       }
 
-      for (auto _ : + hb_enumerate (langSys))
+      for (auto _ : + hb_zip (langSys, hb_range (langsys_count)))
       {
-        const LangSys& l = this+_.second.offset;
+        const LangSys& l = this+_.first.offset;
         if (!c->visitLangsys (l.get_feature_count ())) continue;
         if (l.compare (d, c->duplicate_feature_map)) continue;
 
         l.collect_features (c);
-        c->script_langsys_map->get (script_index)->add (_.first);
+        c->script_langsys_map->get (script_index)->add (_.second);
       }
     }
     else
     {
-      for (auto _ : + hb_enumerate (langSys))
+      for (auto _ : + hb_zip (langSys, hb_range (langsys_count)))
       {
-        const LangSys& l = this+_.second.offset;
+        const LangSys& l = this+_.first.offset;
         if (!c->visitLangsys (l.get_feature_count ())) continue;
         l.collect_features (c);
-        c->script_langsys_map->get (script_index)->add (_.first);
+        c->script_langsys_map->get (script_index)->add (_.second);
       }
     }
   }
@@ -1208,9 +1211,10 @@ struct Script
     const hb_set_t *active_langsys = l->script_langsys_map->get (l->cur_script_index);
     if (active_langsys)
     {
-      + hb_enumerate (langSys)
-      | hb_filter (active_langsys, hb_first)
-      | hb_map (hb_second)
+      unsigned count = langSys.len;
+      + hb_zip (langSys, hb_range (count))
+      | hb_filter (active_langsys, hb_second)
+      | hb_map (hb_first)
       | hb_filter ([=] (const Record<LangSys>& record) {return l->visitLangSys (); })
       | hb_apply (subset_record_array (l, &(out->langSys), this))
       ;
@@ -1246,11 +1250,12 @@ struct RecordListOfScript : RecordListOf<Script>
     auto *out = c->serializer->start_embed (*this);
     if (unlikely (!out || !c->serializer->extend_min (out))) return_trace (false);
 
-    for (auto _ : + hb_enumerate (*this))
+    unsigned count = this->len;
+    for (auto _ : + hb_zip (*this, hb_range (count)))
     {
       auto snap = c->serializer->snapshot ();
-      l->cur_script_index = _.first;
-      bool ret = _.second.subset (l, this);
+      l->cur_script_index = _.second;
+      bool ret = _.first.subset (l, this);
       if (!ret) c->serializer->revert (snap);
       else out->len++;
     }
@@ -1455,9 +1460,10 @@ struct LookupOffsetList : List16OfOffsetTo<TLookup, OffsetType>
     auto *out = c->serializer->start_embed (this);
     if (unlikely (!out || !c->serializer->extend_min (out))) return_trace (false);
 
-    + hb_enumerate (*this)
-    | hb_filter (l->lookup_index_map, hb_first)
-    | hb_map (hb_second)
+    unsigned count = this->len;
+    + hb_zip (*this, hb_range (count))
+    | hb_filter (l->lookup_index_map, hb_second)
+    | hb_map (hb_first)
     | hb_apply (subset_offset_array (c, *out, this))
     ;
     return_trace (true);
@@ -1491,7 +1497,7 @@ static bool ClassDef_remap_and_serialize (hb_serialize_context_t *c,
     klass_map->set (0, 0);
 
   unsigned idx = klass_map->has (0) ? 1 : 0;
-  for (const unsigned k: klasses)
+  for (const unsigned k: klasses.iter ())
   {
     if (klass_map->has (k)) continue;
     klass_map->set (k, idx);
@@ -1522,11 +1528,6 @@ struct ClassDefFormat1_3
   unsigned int get_class (hb_codepoint_t glyph_id) const
   {
     return classValue[(unsigned int) (glyph_id - startGlyph)];
-  }
-
-  unsigned get_population () const
-  {
-    return classValue.len;
   }
 
   template<typename Iterator,
@@ -1644,10 +1645,11 @@ struct ClassDefFormat1_3
 
   bool intersects (const hb_set_t *glyphs) const
   {
+    /* TODO Speed up, using hb_set_next()? */
     hb_codepoint_t start = startGlyph;
     hb_codepoint_t end = startGlyph + classValue.len;
     for (hb_codepoint_t iter = startGlyph - 1;
-	 glyphs->next (&iter) && iter < end;)
+	 hb_set_next (glyphs, &iter) && iter < end;)
       if (classValue[iter - start]) return true;
     return false;
   }
@@ -1658,10 +1660,10 @@ struct ClassDefFormat1_3
     {
       /* Match if there's any glyph that is not listed! */
       hb_codepoint_t g = HB_SET_VALUE_INVALID;
-      if (!glyphs->next (&g)) return false;
+      if (!hb_set_next (glyphs, &g)) return false;
       if (g < startGlyph) return true;
       g = startGlyph + count - 1;
-      if (glyphs->next (&g)) return true;
+      if (hb_set_next (glyphs, &g)) return true;
       /* Fall through. */
     }
     /* TODO Speed up, using set overlap first? */
@@ -1680,11 +1682,11 @@ struct ClassDefFormat1_3
     {
       unsigned start_glyph = startGlyph;
       for (uint32_t g = HB_SET_VALUE_INVALID;
-	   glyphs->next (&g) && g < start_glyph;)
+	   hb_set_next (glyphs, &g) && g < start_glyph;)
 	intersect_glyphs->add (g);
 
       for (uint32_t g = startGlyph + count - 1;
-	   glyphs-> next (&g);)
+	   hb_set_next (glyphs, &g);)
 	intersect_glyphs->add (g);
 
       return;
@@ -1700,7 +1702,7 @@ struct ClassDefFormat1_3
     unsigned start_glyph = startGlyph;
     unsigned end_glyph = start_glyph + count;
     for (unsigned g = startGlyph - 1;
-	 glyphs->next (&g) && g < end_glyph;)
+	 hb_set_next (glyphs, &g) && g < end_glyph;)
       if (classValue.arrayZ[g - start_glyph] == klass)
         intersect_glyphs->add (g);
 #endif
@@ -1741,14 +1743,6 @@ struct ClassDefFormat2_4
   unsigned int get_class (hb_codepoint_t glyph_id) const
   {
     return rangeRecord.bsearch (glyph_id).value;
-  }
-
-  unsigned get_population () const
-  {
-    typename Types::large_int ret = 0;
-    for (const auto &r : rangeRecord)
-      ret += r.get_population ();
-    return ret > UINT_MAX ? UINT_MAX : (unsigned) ret;
   }
 
   template<typename Iterator,
@@ -1814,43 +1808,26 @@ struct ClassDefFormat2_4
   {
     TRACE_SUBSET (this);
     const hb_map_t &glyph_map = *c->plan->glyph_map_gsub;
-    const hb_set_t &glyph_set = *c->plan->glyphset_gsub ();
 
     hb_sorted_vector_t<hb_pair_t<hb_codepoint_t, hb_codepoint_t>> glyph_and_klass;
     hb_set_t orig_klasses;
 
-    if (glyph_set.get_population () * hb_bit_storage ((unsigned) rangeRecord.len) / 2
-	< get_population ())
+    unsigned num_source_glyphs = c->plan->source->get_num_glyphs ();
+    unsigned count = rangeRecord.len;
+    for (unsigned i = 0; i < count; i++)
     {
-      for (hb_codepoint_t g : glyph_set)
+      unsigned klass = rangeRecord[i].value;
+      if (!klass) continue;
+      hb_codepoint_t start = rangeRecord[i].first;
+      hb_codepoint_t end   = hb_min (rangeRecord[i].last + 1, num_source_glyphs);
+      for (hb_codepoint_t g = start; g < end; g++)
       {
-	unsigned klass = get_class (g);
-	if (!klass) continue;
-	hb_codepoint_t new_gid = glyph_map[g];
+        hb_codepoint_t new_gid = glyph_map[g];
 	if (new_gid == HB_MAP_VALUE_INVALID) continue;
-	if (glyph_filter && !glyph_filter->has (g)) continue;
+        if (glyph_filter && !glyph_filter->has (g)) continue;
+
 	glyph_and_klass.push (hb_pair (new_gid, klass));
 	orig_klasses.add (klass);
-      }
-    }
-    else
-    {
-      unsigned num_source_glyphs = c->plan->source->get_num_glyphs ();
-      for (auto &range : rangeRecord)
-      {
-	unsigned klass = range.value;
-	if (!klass) continue;
-	hb_codepoint_t start = range.first;
-	hb_codepoint_t end   = hb_min (range.last + 1, num_source_glyphs);
-	for (hb_codepoint_t g = start; g < end; g++)
-	{
-	  hb_codepoint_t new_gid = glyph_map[g];
-	  if (new_gid == HB_MAP_VALUE_INVALID) continue;
-	  if (glyph_filter && !glyph_filter->has (g)) continue;
-
-	  glyph_and_klass.push (hb_pair (new_gid, klass));
-	  orig_klasses.add (klass);
-	}
       }
     }
 
@@ -1879,9 +1856,10 @@ struct ClassDefFormat2_4
   template <typename set_t>
   bool collect_coverage (set_t *glyphs) const
   {
-    for (auto &range : rangeRecord)
-      if (range.value)
-	if (unlikely (!range.collect_coverage (glyphs)))
+    unsigned int count = rangeRecord.len;
+    for (unsigned int i = 0; i < count; i++)
+      if (rangeRecord[i].value)
+	if (unlikely (!rangeRecord[i].collect_coverage (glyphs)))
 	  return false;
     return true;
   }
@@ -1889,10 +1867,11 @@ struct ClassDefFormat2_4
   template <typename set_t>
   bool collect_class (set_t *glyphs, unsigned int klass) const
   {
-    for (auto &range : rangeRecord)
+    unsigned int count = rangeRecord.len;
+    for (unsigned int i = 0; i < count; i++)
     {
-      if (range.value == klass)
-	if (unlikely (!range.collect_coverage (glyphs)))
+      if (rangeRecord[i].value == klass)
+	if (unlikely (!rangeRecord[i].collect_coverage (glyphs)))
 	  return false;
     }
     return true;
@@ -1900,32 +1879,32 @@ struct ClassDefFormat2_4
 
   bool intersects (const hb_set_t *glyphs) const
   {
-    if (rangeRecord.len > glyphs->get_population () * hb_bit_storage ((unsigned) rangeRecord.len) / 2)
+    /* TODO Speed up, using hb_set_next() and bsearch()? */
+    unsigned int count = rangeRecord.len;
+    for (unsigned int i = 0; i < count; i++)
     {
-      for (hb_codepoint_t g = HB_SET_VALUE_INVALID; glyphs->next (&g);)
-        if (get_class (g))
-	  return true;
-      return false;
+      const auto& range = rangeRecord[i];
+      if (range.intersects (*glyphs) && range.value)
+	return true;
     }
-
-    return hb_any (+ hb_iter (rangeRecord)
-                   | hb_map ([glyphs] (const RangeRecord<Types> &range) { return range.intersects (*glyphs) && range.value; }));
+    return false;
   }
   bool intersects_class (const hb_set_t *glyphs, uint16_t klass) const
   {
+    unsigned int count = rangeRecord.len;
     if (klass == 0)
     {
       /* Match if there's any glyph that is not listed! */
       hb_codepoint_t g = HB_SET_VALUE_INVALID;
-      for (auto &range : rangeRecord)
+      for (unsigned int i = 0; i < count; i++)
       {
-	if (!glyphs->next (&g))
+	if (!hb_set_next (glyphs, &g))
 	  break;
-	if (g < range.first)
+	if (g < rangeRecord[i].first)
 	  return true;
-	g = range.last;
+	g = rangeRecord[i].last;
       }
-      if (g != HB_SET_VALUE_INVALID && glyphs->next (&g))
+      if (g != HB_SET_VALUE_INVALID && hb_set_next (glyphs, &g))
 	return true;
       /* Fall through. */
     }
@@ -1937,49 +1916,49 @@ struct ClassDefFormat2_4
 
   void intersected_class_glyphs (const hb_set_t *glyphs, unsigned klass, hb_set_t *intersect_glyphs) const
   {
+    unsigned count = rangeRecord.len;
     if (klass == 0)
     {
       hb_codepoint_t g = HB_SET_VALUE_INVALID;
-      for (auto &range : rangeRecord)
+      for (unsigned int i = 0; i < count; i++)
       {
-	if (!glyphs->next (&g))
+	if (!hb_set_next (glyphs, &g))
 	  goto done;
-	while (g < range.first)
+	while (g < rangeRecord[i].first)
 	{
 	  intersect_glyphs->add (g);
-	  if (!glyphs->next (&g))
+	  if (!hb_set_next (glyphs, &g))
 	    goto done;
         }
-        g = range.last;
+        g = rangeRecord[i].last;
       }
-      while (glyphs->next (&g))
+      while (hb_set_next (glyphs, &g))
 	intersect_glyphs->add (g);
       done:
 
       return;
     }
 
-    unsigned count = rangeRecord.len;
-    if (count > glyphs->get_population () * hb_bit_storage (count) * 8)
+#if 0
+    /* The following implementation is faster asymptotically, but slower
+     * in practice. */
+    if ((count >> 3) > glyphs->get_population ())
     {
       for (hb_codepoint_t g = HB_SET_VALUE_INVALID;
-	   glyphs->next (&g);)
-      {
-        unsigned i;
-        if (rangeRecord.as_array ().bfind (g, &i) &&
-	    rangeRecord.arrayZ[i].value == klass)
+	   hb_set_next (glyphs, &g);)
+        if (rangeRecord.as_array ().bfind (g))
 	  intersect_glyphs->add (g);
-      }
       return;
     }
+#endif
 
-    for (auto &range : rangeRecord)
+    for (unsigned int i = 0; i < count; i++)
     {
-      if (range.value != klass) continue;
+      if (rangeRecord[i].value != klass) continue;
 
-      unsigned end = range.last + 1;
-      for (hb_codepoint_t g = range.first - 1;
-	   glyphs->next (&g) && g < end;)
+      unsigned end = rangeRecord[i].last + 1;
+      for (hb_codepoint_t g = rangeRecord[i].first - 1;
+	   hb_set_next (glyphs, &g) && g < end;)
 	intersect_glyphs->add (g);
     }
   }
@@ -1988,24 +1967,25 @@ struct ClassDefFormat2_4
   {
     if (glyphs->is_empty ()) return;
 
+    unsigned count = rangeRecord.len;
     hb_codepoint_t g = HB_SET_VALUE_INVALID;
-    for (auto &range : rangeRecord)
+    for (unsigned int i = 0; i < count; i++)
     {
-      if (!glyphs->next (&g))
+      if (!hb_set_next (glyphs, &g))
         break;
-      if (g < range.first)
+      if (g < rangeRecord[i].first)
       {
         intersect_classes->add (0);
         break;
       }
-      g = range.last;
+      g = rangeRecord[i].last;
     }
-    if (g != HB_SET_VALUE_INVALID && glyphs->next (&g))
+    if (g != HB_SET_VALUE_INVALID && hb_set_next (glyphs, &g))
       intersect_classes->add (0);
 
-    for (const auto& range : rangeRecord)
-      if (range.intersects (*glyphs))
-        intersect_classes->add (range.value);
+    for (const auto& record : rangeRecord.iter ())
+      if (record.intersects (*glyphs))
+        intersect_classes->add (record.value);
   }
 
   protected:
@@ -2020,8 +2000,10 @@ struct ClassDefFormat2_4
 struct ClassDef
 {
   /* Has interface. */
-  unsigned operator [] (hb_codepoint_t k) const { return get (k); }
-  bool has (hb_codepoint_t k) const { return (*this)[k]; }
+  static constexpr unsigned SENTINEL = 0;
+  typedef unsigned int value_t;
+  value_t operator [] (hb_codepoint_t k) const { return get (k); }
+  bool has (hb_codepoint_t k) const { return (*this)[k] != SENTINEL; }
   /* Projection. */
   hb_codepoint_t operator () (hb_codepoint_t k) const { return get (k); }
 
@@ -2036,19 +2018,6 @@ struct ClassDef
     case 4: return u.format4.get_class (glyph_id);
 #endif
     default:return 0;
-    }
-  }
-
-  unsigned get_population () const
-  {
-    switch (u.format) {
-    case 1: return u.format1.get_population ();
-    case 2: return u.format2.get_population ();
-#ifndef HB_NO_BEYOND_64K
-    case 3: return u.format3.get_population ();
-    case 4: return u.format4.get_population ();
-#endif
-    default:return NOT_COVERED;
     }
   }
 
@@ -2479,26 +2448,21 @@ struct VarData
     unsigned ri_count = src->regionIndices.len;
     enum delta_size_t { kZero=0, kNonWord, kWord };
     hb_vector_t<delta_size_t> delta_sz;
-    hb_vector_t<unsigned int> ri_map;	/* maps new index to old index */
+    hb_vector_t<unsigned int> ri_map;	/* maps old index to new index */
     delta_sz.resize (ri_count);
     ri_map.resize (ri_count);
     unsigned int new_word_count = 0;
     unsigned int r;
 
-    const HBUINT8 *src_delta_bytes = src->get_delta_bytes ();
-    unsigned src_row_size = src->get_row_size ();
-    unsigned src_word_count = src->wordCount ();
-    unsigned src_long_words = src->longWords ();
-
     bool has_long = false;
-    if (src_long_words)
+    if (src->longWords ())
     {
-      for (r = 0; r < src_word_count; r++)
+      for (r = 0; r < ri_count; r++)
       {
 	for (unsigned int i = 0; i < inner_map.get_next_value (); i++)
 	{
 	  unsigned int old = inner_map.backward (i);
-	  int32_t delta = src->get_item_delta_fast (old, r, src_delta_bytes, src_row_size);
+	  int32_t delta = src->get_item_delta (old, r);
 	  if (delta < -65536 || 65535 < delta)
 	  {
 	    has_long = true;
@@ -2512,13 +2476,11 @@ struct VarData
     signed max_threshold = has_long ? +65535 : +127;
     for (r = 0; r < ri_count; r++)
     {
-      bool short_circuit = src_long_words == has_long && src_word_count <= r;
-
       delta_sz[r] = kZero;
       for (unsigned int i = 0; i < inner_map.get_next_value (); i++)
       {
 	unsigned int old = inner_map.backward (i);
-	int32_t delta = src->get_item_delta_fast (old, r, src_delta_bytes, src_row_size);
+	int32_t delta = src->get_item_delta (old, r);
 	if (delta < min_threshold || max_threshold < delta)
 	{
 	  delta_sz[r] = kWord;
@@ -2526,11 +2488,7 @@ struct VarData
 	  break;
 	}
 	else if (delta != 0)
-	{
 	  delta_sz[r] = kNonWord;
-	  if (short_circuit)
-	    break;
-	}
       }
     }
 
@@ -2540,8 +2498,7 @@ struct VarData
     for (r = 0; r < ri_count; r++)
       if (delta_sz[r])
       {
-	unsigned new_r = (delta_sz[r] == kWord)? word_index++ : non_word_index++;
-	ri_map[new_r] = r;
+	ri_map[r] = (delta_sz[r] == kWord)? word_index++ : non_word_index++;
 	new_ri_count++;
       }
 
@@ -2549,22 +2506,16 @@ struct VarData
 
     regionIndices.len = new_ri_count;
 
-    if (unlikely (!c->extend_size (this, get_size (), false))) return_trace (false);
+    if (unlikely (!c->extend (this))) return_trace (false);
 
-    for (r = 0; r < new_ri_count; r++)
-      regionIndices[r] = region_map[src->regionIndices[ri_map[r]]];
+    for (r = 0; r < ri_count; r++)
+      if (delta_sz[r]) regionIndices[ri_map[r]] = region_map[src->regionIndices[r]];
 
-    HBUINT8 *delta_bytes = get_delta_bytes ();
-    unsigned row_size = get_row_size ();
-    unsigned count = itemCount;
-    for (unsigned int i = 0; i < count; i++)
+    for (unsigned int i = 0; i < itemCount; i++)
     {
-      unsigned int old = inner_map.backward (i);
-      for (unsigned int r = 0; r < new_ri_count; r++)
-	set_item_delta_fast (i, r,
-			     src->get_item_delta_fast (old, ri_map[r],
-						       src_delta_bytes, src_row_size),
-			     delta_bytes, row_size);
+      unsigned int	old = inner_map.backward (i);
+      for (unsigned int r = 0; r < ri_count; r++)
+	if (delta_sz[r]) set_item_delta (i, ri_map[r], src->get_item_delta (old, r));
     }
 
     return_trace (true);
@@ -2572,15 +2523,12 @@ struct VarData
 
   void collect_region_refs (hb_set_t &region_indices, const hb_inc_bimap_t &inner_map) const
   {
-    const HBUINT8 *delta_bytes = get_delta_bytes ();
-    unsigned row_size = get_row_size ();
-
     for (unsigned int r = 0; r < regionIndices.len; r++)
     {
-      unsigned int region = regionIndices.arrayZ[r];
+      unsigned int region = regionIndices[r];
       if (region_indices.has (region)) continue;
       for (unsigned int i = 0; i < inner_map.get_next_value (); i++)
-	if (get_item_delta_fast (inner_map.backward (i), r, delta_bytes, row_size) != 0)
+	if (get_item_delta (inner_map.backward (i), r) != 0)
 	{
 	  region_indices.add (region);
 	  break;
@@ -2595,12 +2543,10 @@ struct VarData
   HBUINT8 *get_delta_bytes ()
   { return &StructAfter<HBUINT8> (regionIndices); }
 
-  int32_t get_item_delta_fast (unsigned int item, unsigned int region,
-			       const HBUINT8 *delta_bytes, unsigned row_size) const
+  int32_t get_item_delta (unsigned int item, unsigned int region) const
   {
-    if (unlikely (item >= itemCount || region >= regionIndices.len)) return 0;
-
-    const HBINT8 *p = (const HBINT8 *) delta_bytes + item * row_size;
+    if ( item >= itemCount || unlikely (region >= regionIndices.len)) return 0;
+    const HBINT8 *p = (const HBINT8 *) get_delta_bytes () + item * get_row_size ();
     unsigned word_count = wordCount ();
     bool is_long = longWords ();
     if (is_long)
@@ -2618,17 +2564,10 @@ struct VarData
 	return (p + HBINT16::static_size * word_count)[region - word_count];
     }
   }
-  int32_t get_item_delta (unsigned int item, unsigned int region) const
-  {
-     return get_item_delta_fast (item, region,
-				 get_delta_bytes (),
-				 get_row_size ());
-  }
 
-  void set_item_delta_fast (unsigned int item, unsigned int region, int32_t delta,
-			    HBUINT8 *delta_bytes, unsigned row_size)
+  void set_item_delta (unsigned int item, unsigned int region, int32_t delta)
   {
-    HBINT8 *p = (HBINT8 *) delta_bytes + item * row_size;
+    HBINT8 *p = (HBINT8 *)get_delta_bytes () + item * get_row_size ();
     unsigned word_count = wordCount ();
     bool is_long = longWords ();
     if (is_long)
@@ -2645,12 +2584,6 @@ struct VarData
       else
 	(p + HBINT16::static_size * word_count)[region - word_count] = delta;
     }
-  }
-  void set_item_delta (unsigned int item, unsigned int region, int32_t delta)
-  {
-    set_item_delta_fast (item, region, delta,
-			 get_delta_bytes (),
-			 get_row_size ());
   }
 
   bool longWords () const { return wordSizeCount & 0x8000u /* LONG_WORDS */; }
@@ -3493,16 +3426,17 @@ struct VariationDevice
   {
     TRACE_SERIALIZE (this);
     if (!layout_variation_idx_delta_map) return_trace (nullptr);
-
-    hb_pair_t<unsigned, int> *v;
-    if (!layout_variation_idx_delta_map->has (varIdx, &v))
-      return_trace (nullptr);
-
-    c->start_zerocopy (this->static_size);
+    auto snap = c->snapshot ();
     auto *out = c->embed (this);
     if (unlikely (!out)) return_trace (nullptr);
 
-    unsigned new_idx = hb_first (*v);
+    /* TODO Just get() and bail if NO_VARIATION. Needs to setup the map to return that. */
+    if (!layout_variation_idx_delta_map->has (varIdx))
+    {
+      c->revert (snap);
+      return_trace (nullptr);
+    }
+    unsigned new_idx = hb_first (layout_variation_idx_delta_map->get (varIdx));
     out->varIdx = new_idx;
     return_trace (out);
   }

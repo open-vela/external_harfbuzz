@@ -363,7 +363,6 @@ const hb_ot_shaper_t _hb_ot_shaper_myanmar =
 };
 
 
-#ifndef HB_NO_OT_SHAPER_MYANMAR_ZAWGYI
 /* Ugly Zawgyi encoding.
  * Disable all auto processing.
  * https://github.com/harfbuzz/harfbuzz/issues/1162 */
@@ -384,7 +383,6 @@ const hb_ot_shaper_t _hb_ot_shaper_myanmar_zawgyi =
   HB_OT_SHAPE_ZERO_WIDTH_MARKS_NONE,
   false, /* fallback_position */
 };
-#endif
 
 
 #endif

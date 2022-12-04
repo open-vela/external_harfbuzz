@@ -305,8 +305,6 @@ struct byte_str_ref_t
     return str.arrayZ[get_offset () + i];
   }
 
-  unsigned char head_unchecked () const { return str.arrayZ[get_offset ()]; }
-
   /* Conversion to hb_ubytes_t */
   operator hb_ubytes_t () const { return str.sub_array (get_offset ()); }
 
@@ -553,7 +551,8 @@ struct parsed_values_t
   }
 
   unsigned get_count () const { return values.length; }
-  const VAL &operator [] (unsigned int i) const { return values[i]; }
+  const VAL &get_value (unsigned int i)   const { return values[i]; }
+  const VAL &operator [] (unsigned int i) const { return get_value (i); }
 
   unsigned int       opStart;
   hb_vector_t<VAL>   values;
@@ -577,12 +576,12 @@ struct interp_env_t
     op_code_t  op = OpCode_Invalid;
     if (unlikely (!str_ref.avail ()))
       return OpCode_Invalid;
-    op = (op_code_t) str_ref.head_unchecked ();
+    op = (op_code_t)(unsigned char)str_ref[0];
     str_ref.inc ();
     if (op == OpCode_escape) {
       if (unlikely (!str_ref.avail ()))
 	return OpCode_Invalid;
-      op = Make_OpCode_ESC (str_ref.head_unchecked ());
+      op = Make_OpCode_ESC(str_ref[0]);
       str_ref.inc ();
     }
     return op;

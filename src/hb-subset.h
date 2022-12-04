@@ -185,12 +185,9 @@ hb_subset_input_pin_axis_location (hb_subset_input_t  *input,
 HB_EXTERN hb_face_t *
 hb_subset_preprocess (hb_face_t *source);
 
-HB_EXTERN hb_bool_t
+HB_EXTERN void
 hb_subset_input_override_name_table (hb_subset_input_t  *input,
 				     hb_ot_name_id_t     name_id,
-				     unsigned            platform_id,
-				     unsigned            encoding_id,
-				     unsigned            language_id,
 				     const char         *name_str,
 				     int                 str_len);
 

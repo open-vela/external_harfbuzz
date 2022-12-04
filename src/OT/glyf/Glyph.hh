@@ -113,25 +113,25 @@ struct Glyph
       if (unlikely (!glyph_header)) return false;
     }
 
-    float xMin = 0, xMax = 0;
-    float yMin = 0, yMax = 0;
+    int xMin = 0, xMax = 0;
+    int yMin = 0, yMax = 0;
     if (all_points.length > 4)
     {
-      xMin = xMax = all_points[0].x;
-      yMin = yMax = all_points[0].y;
+      xMin = xMax = roundf (all_points[0].x);
+      yMin = yMax = roundf (all_points[0].y);
     }
 
     for (unsigned i = 1; i < all_points.length - 4; i++)
     {
-      float x = all_points[i].x;
-      float y = all_points[i].y;
-      xMin = hb_min (xMin, x);
-      xMax = hb_max (xMax, x);
-      yMin = hb_min (yMin, y);
-      yMax = hb_max (yMax, y);
+      float rounded_x = roundf (all_points[i].x);
+      float rounded_y = roundf (all_points[i].y);
+      xMin = hb_min (xMin, rounded_x);
+      xMax = hb_max (xMax, rounded_x);
+      yMin = hb_min (yMin, rounded_y);
+      yMax = hb_max (yMax, rounded_y);
     }
 
-    update_mtx (plan, roundf (xMin), roundf (yMax), all_points);
+    update_mtx (plan, xMin, yMax, all_points);
 
     /*for empty glyphs: all_points only include phantom points.
      *just update metrics and then return */
@@ -139,10 +139,10 @@ struct Glyph
       return true;
 
     glyph_header->numberOfContours = header->numberOfContours;
-    glyph_header->xMin = roundf (xMin);
-    glyph_header->yMin = roundf (yMin);
-    glyph_header->xMax = roundf (xMax);
-    glyph_header->yMax = roundf (yMax);
+    glyph_header->xMin = xMin;
+    glyph_header->yMin = yMin;
+    glyph_header->xMax = xMax;
+    glyph_header->yMax = yMax;
 
     dest_bytes = hb_bytes_t ((const char *)glyph_header, GlyphHeader::static_size);
     return true;
@@ -233,7 +233,7 @@ struct Glyph
       int lsb = 0;
       int h_delta = glyf_accelerator.hmtx->get_leading_bearing_without_var_unscaled (gid, &lsb) ?
 		    (int) header->xMin - lsb : 0;
-      HB_UNUSED int tsb = 0;
+      int tsb = 0;
       int v_orig  = (int) header->yMax +
 #ifndef HB_NO_VERTICAL
 		    ((void) glyf_accelerator.vmtx->get_leading_bearing_without_var_unscaled (gid, &tsb), tsb)

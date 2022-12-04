@@ -90,14 +90,11 @@ struct hb_subset_plan_t
 #ifdef HB_EXPERIMENTAL_API
     if (name_table_overrides)
     {
-      for (auto _ : *name_table_overrides)
-        _.second.fini ();
+      for (auto _ : name_table_overrides->values ())
+        _.fini ();
     }
     hb_hashmap_destroy (name_table_overrides);
 #endif
-
-    if (inprogress_accelerator)
-      hb_subset_accelerator_t::destroy ((void*) inprogress_accelerator);
 
     if (user_axes_location)
     {
@@ -111,11 +108,10 @@ struct hb_subset_plan_t
   bool successful;
   unsigned flags;
   bool attach_accelerator_data = false;
-  bool force_long_loca = false;
 
   // For each cp that we'd like to retain maps to the corresponding gid.
   hb_set_t *unicodes;
-  hb_sorted_vector_t<hb_pair_t<hb_codepoint_t, hb_codepoint_t>> unicode_to_new_gid_list;
+  hb_vector_t<hb_pair_t<hb_codepoint_t, hb_codepoint_t>> unicode_to_new_gid_list;
 
   // name_ids we would like to retain
   hb_set_t *name_ids;
@@ -206,33 +202,30 @@ struct hb_subset_plan_t
   hb_hashmap_t<unsigned, hb_pair_t<unsigned, int>> *vmtx_map;
 
 #ifdef HB_EXPERIMENTAL_API
-  // name table overrides map: hb_ot_name_record_ids_t-> name string new value or
-  // None to indicate should remove
-  hb_hashmap_t<hb_ot_name_record_ids_t, hb_bytes_t> *name_table_overrides;
+  // name table overrides map: name_id->name string new value or None
+  // to indicate should remove
+  hb_hashmap_t<unsigned, hb_bytes_t> *name_table_overrides;
 #endif
 
   const hb_subset_accelerator_t* accelerator;
-  hb_subset_accelerator_t* inprogress_accelerator;
 
  public:
 
   template<typename T>
   hb_blob_ptr_t<T> source_table()
   {
-    hb_lock_t (accelerator ? &accelerator->sanitized_table_cache_lock : nullptr);
-
-    auto *cache = accelerator ? &accelerator->sanitized_table_cache : sanitized_table_cache;
-    if (cache
-        && !cache->in_error ()
-        && cache->has (+T::tableTag)) {
-      return hb_blob_reference (cache->get (+T::tableTag).get ());
+    if (sanitized_table_cache
+        && !sanitized_table_cache->in_error ()
+        && sanitized_table_cache->has (+T::tableTag)) {
+      return hb_blob_reference (sanitized_table_cache->get (+T::tableTag).get ());
     }
 
     hb::unique_ptr<hb_blob_t> table_blob {hb_sanitize_context_t ().reference_table<T> (source)};
     hb_blob_t* ret = hb_blob_reference (table_blob.get ());
 
-    if (likely (cache))
-      cache->set (+T::tableTag, std::move (table_blob));
+    if (likely (sanitized_table_cache))
+      sanitized_table_cache->set (+T::tableTag,
+                                  std::move (table_blob));
 
     return ret;
   }
