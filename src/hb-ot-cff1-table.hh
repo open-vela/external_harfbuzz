@@ -617,7 +617,6 @@ struct CFF1StringIndex : CFF1Index
     }
 
     byte_str_array_t bytesArray;
-    bytesArray.init ();
     if (!bytesArray.resize (sidmap.get_population ()))
       return_trace (false);
     for (unsigned int i = 0; i < strings.count; i++)
@@ -628,7 +627,6 @@ struct CFF1StringIndex : CFF1Index
     }
 
     bool result = CFF1Index::serialize (c, bytesArray);
-    bytesArray.fini ();
     return_trace (result);
   }
 };
@@ -1295,10 +1293,10 @@ struct cff1
     }
 
     protected:
-    hb_blob_t	           *blob = nullptr;
     hb_sanitize_context_t   sc;
 
     public:
+    hb_blob_t               *blob = nullptr;
     const Encoding	    *encoding = nullptr;
     const Charset	    *charset = nullptr;
     const CFF1NameIndex     *nameIndex = nullptr;

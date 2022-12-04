@@ -69,6 +69,7 @@ struct hb_ot_map_t
     unsigned short random : 1;
     unsigned short per_syllable : 1;
     hb_mask_t mask;
+    hb_tag_t feature_tag;
 
     HB_INTERNAL static int cmp (const void *pa, const void *pb)
     {
@@ -91,11 +92,11 @@ struct hb_ot_map_t
   {
     hb_memset (this, 0, sizeof (*this));
 
-    features.init ();
+    features.init0 ();
     for (unsigned int table_index = 0; table_index < 2; table_index++)
     {
-      lookups[table_index].init ();
-      stages[table_index].init ();
+      lookups[table_index].init0 ();
+      stages[table_index].init0 ();
     }
   }
   void fini ()
@@ -241,7 +242,8 @@ struct hb_ot_map_builder_t
 				bool          auto_zwnj = true,
 				bool          auto_zwj = true,
 				bool          random = false,
-				bool          per_syllable = false);
+				bool          per_syllable = false,
+				hb_tag_t      feature_tag = HB_TAG(' ',' ',' ',' '));
 
   struct feature_info_t {
     hb_tag_t tag;

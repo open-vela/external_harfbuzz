@@ -483,13 +483,18 @@ struct cff2
       blob = nullptr;
     }
 
+    hb_map_t *create_glyph_to_sid_map () const
+    {
+      return nullptr;
+    }
+
     bool is_valid () const { return blob; }
 
     protected:
-    hb_blob_t			*blob = nullptr;
     hb_sanitize_context_t	sc;
 
     public:
+    hb_blob_t			*blob = nullptr;
     cff2_top_dict_values_t	topDict;
     const CFF2Subrs		*globalSubrs = nullptr;
     const CFF2VariationStore	*varStore = nullptr;
