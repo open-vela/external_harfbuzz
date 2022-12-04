@@ -100,7 +100,10 @@ struct hb_array_t : hb_iter_with_fallback_t<hb_array_t<Type>, Type&>
   /* Ouch. The operator== compares the contents of the array.  For range-based for loops,
    * it's best if we can just compare arrayZ, though comparing contents is still fast,
    * but also would require that Type has operator==.  As such, we optimize this operator
-   * for range-based for loop and just compare arrayZ and length. */
+   * for range-based for loop and just compare arrayZ and length.
+   *
+   * The above comment is outdated now because we implemented separate begin/end to
+   * objects that were using hb_array_t for range-based loop before. */
   bool operator != (const hb_array_t& o) const
   { return this->arrayZ != o.arrayZ || this->length != o.length; }
 
@@ -189,12 +192,14 @@ struct hb_array_t : hb_iter_with_fallback_t<hb_array_t<Type>, Type&>
 
   hb_sorted_array_t<Type> qsort (int (*cmp_)(const void*, const void*))
   {
+    //static_assert (hb_enable_if (hb_is_trivially_copy_assignable(Type)), "");
     if (likely (length))
       hb_qsort (arrayZ, length, this->get_item_size (), cmp_);
     return hb_sorted_array_t<Type> (*this);
   }
   hb_sorted_array_t<Type> qsort ()
   {
+    //static_assert (hb_enable_if (hb_is_trivially_copy_assignable(Type)), "");
     if (likely (length))
       hb_qsort (arrayZ, length, this->get_item_size (), Type::cmp);
     return hb_sorted_array_t<Type> (*this);
@@ -260,14 +265,28 @@ struct hb_array_t : hb_iter_with_fallback_t<hb_array_t<Type>, Type&>
   void fini ()
   { hb_free ((void *) arrayZ); arrayZ = nullptr; length = 0; }
 
-  template <typename hb_serialize_context_t>
+  template <typename hb_serialize_context_t,
+	    typename U = Type,
+	    hb_enable_if (!(sizeof (U) < sizeof (long long) && hb_is_trivially_copy_assignable(hb_decay<Type>)))>
   hb_array_t copy (hb_serialize_context_t *c) const
   {
     TRACE_SERIALIZE (this);
     auto* out = c->start_embed (arrayZ);
-    if (unlikely (!c->extend_size (out, get_size ()))) return_trace (hb_array_t ());
+    if (unlikely (!c->extend_size (out, get_size (), false))) return_trace (hb_array_t ());
     for (unsigned i = 0; i < length; i++)
       out[i] = arrayZ[i]; /* TODO: add version that calls c->copy() */
+    return_trace (hb_array_t (out, length));
+  }
+
+  template <typename hb_serialize_context_t,
+	    typename U = Type,
+	    hb_enable_if (sizeof (U) < sizeof (long long) && hb_is_trivially_copy_assignable(hb_decay<Type>))>
+  hb_array_t copy (hb_serialize_context_t *c) const
+  {
+    TRACE_SERIALIZE (this);
+    auto* out = c->start_embed (arrayZ);
+    if (unlikely (!c->extend_size (out, get_size (), false))) return_trace (hb_array_t ());
+    hb_memcpy (out, arrayZ, get_size ());
     return_trace (hb_array_t (out, length));
   }
 
@@ -437,11 +456,11 @@ inline uint32_t hb_array_t<const char>::hash () const
     ((defined(__GNUC__) && __GNUC__ >= 5) || defined(__clang__))
   struct __attribute__((packed)) packed_uint32_t { uint32_t v; };
   for (; i + 4 <= this->length; i += 4)
-    current = current * 31 + (uint32_t) ((((packed_uint32_t *) &this->arrayZ[i])->v) * 2654435761u);
+    current = current * 31 + hb_hash ((uint32_t) ((packed_uint32_t *) &this->arrayZ[i])->v);
 #endif
 
   for (; i < this->length; i++)
-    current = current * 31 + (uint32_t) (this->arrayZ[i] * 2654435761u);
+    current = current * 31 + hb_hash (this->arrayZ[i]);
   return current;
 }
 
@@ -455,11 +474,11 @@ inline uint32_t hb_array_t<const unsigned char>::hash () const
     ((defined(__GNUC__) && __GNUC__ >= 5) || defined(__clang__))
   struct __attribute__((packed)) packed_uint32_t { uint32_t v; };
   for (; i + 4 <= this->length; i += 4)
-    current = current * 31 + (uint32_t) ((((packed_uint32_t *) &this->arrayZ[i])->v) * 2654435761u);
+    current = current * 31 + hb_hash ((uint32_t) ((packed_uint32_t *) &this->arrayZ[i])->v);
 #endif
 
   for (; i < this->length; i++)
-    current = current * 31 + (uint32_t) (this->arrayZ[i] * 2654435761u);
+    current = current * 31 + hb_hash (this->arrayZ[i]);
   return current;
 }
 

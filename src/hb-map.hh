@@ -65,22 +65,25 @@ struct hb_hashmap_t
 
   struct item_t
   {
+#define HASH_BITS 29
     K key;
-    uint32_t hash : 30;
+    uint32_t hash : HASH_BITS;
     uint32_t is_used_ : 1;
     uint32_t is_tombstone_ : 1;
+    uint32_t is_real_ : 1;
     V value;
 
     item_t () : key (),
 		hash (0),
-		is_used_ (false), is_tombstone_ (false),
+		is_used_ (false), is_tombstone_ (false), is_real_ (false),
 		value () {}
 
     bool is_used () const { return is_used_; }
-    void set_used (bool is_used) { is_used_ = is_used; }
+    void set_used (bool is_used) { is_used_ = is_used; set_real (); }
     bool is_tombstone () const { return is_tombstone_; }
-    void set_tombstone (bool is_tombstone) { is_tombstone_ = is_tombstone; }
-    bool is_real () const { return is_used_ && !is_tombstone_; }
+    void set_tombstone (bool is_tombstone) { is_tombstone_ = is_tombstone; set_real (); }
+    bool is_real () const { return is_real_; }
+    void set_real () { is_real_ = is_used_ && !is_tombstone_; }
 
     template <bool v = minus_one,
 	      hb_enable_if (v == false)>
@@ -248,8 +251,7 @@ struct hb_hashmap_t
   void del (const K &key) { set_with_hash (key, hb_hash (key), item_t::default_value (), true); }
 
   /* Has interface. */
-  typedef const V& value_t;
-  value_t operator [] (K k) const { return get (k); }
+  const V& operator [] (K k) const { return get (k); }
   template <typename VV=V>
   bool has (K key, VV **vp = nullptr) const
   {
@@ -361,7 +363,7 @@ struct hb_hashmap_t
 
   item_t& item_for_hash (const K &key, uint32_t hash) const
   {
-    hash &= 0x3FFFFFFF; // We only store lower 30bit of hash
+    hash &= (1u << HASH_BITS) - 1;
     unsigned int i = hash % prime;
     unsigned int step = 0;
     unsigned int tombstone = (unsigned) -1;

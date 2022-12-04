@@ -84,6 +84,9 @@ struct hb_vector_t
     allocated = length = 0;
     arrayZ = nullptr;
   }
+  void init0 ()
+  {
+  }
 
   void fini ()
   {
@@ -127,7 +130,7 @@ struct hb_vector_t
   }
 
   hb_bytes_t as_bytes () const
-  { return hb_bytes_t ((const char *) arrayZ, length * item_size); }
+  { return hb_bytes_t ((const char *) arrayZ, get_size ()); }
 
   bool operator == (const hb_vector_t &o) const { return as_array () == o.as_array (); }
   bool operator != (const hb_vector_t &o) const { return !(*this == o); }
@@ -169,7 +172,7 @@ struct hb_vector_t
   operator   iter_t () const { return   iter (); }
   operator writer_t ()       { return writer (); }
 
-  /* Faster range-based for loop without constructing an hb_array_t. */
+  /* Faster range-based for loop. */
   Type *begin () const { return arrayZ; }
   Type *end () const { return arrayZ + length; }
 
@@ -251,6 +254,16 @@ struct hb_vector_t
     return new_array;
   }
 
+  template <typename T = Type,
+	    hb_enable_if (hb_is_trivially_constructible(T))>
+  void
+  grow_vector (unsigned size)
+  {
+    memset (arrayZ + length, 0, (size - length) * sizeof (*arrayZ));
+    length = size;
+  }
+  template <typename T = Type,
+	    hb_enable_if (!hb_is_trivially_constructible(T))>
   void
   grow_vector (unsigned size)
   {
@@ -267,7 +280,14 @@ struct hb_vector_t
   copy_vector (const hb_vector_t &other)
   {
     length = other.length;
-    hb_memcpy ((void *) arrayZ, (const void *) other.arrayZ, length * item_size);
+#ifndef HB_OPTIMIZE_SIZE
+    if (sizeof (T) >= sizeof (long long))
+      /* This runs faster because of alignment. */
+      for (unsigned i = 0; i < length; i++)
+	arrayZ[i] = other.arrayZ[i];
+    else
+#endif
+       hb_memcpy ((void *) arrayZ, (const void *) other.arrayZ, length * item_size);
   }
   template <typename T = Type,
 	    hb_enable_if (!hb_is_trivially_copyable (T) &&
@@ -381,11 +401,23 @@ struct hb_vector_t
     return v;
   }
 
-  void remove (unsigned int i)
+  void remove_ordered (unsigned int i)
   {
     if (unlikely (i >= length))
       return;
     shift_down_vector (i + 1);
+    arrayZ[length - 1].~Type ();
+    length--;
+  }
+
+  template <bool Sorted = sorted,
+	    hb_enable_if (!Sorted)>
+  void remove_unordered (unsigned int i)
+  {
+    if (unlikely (i >= length))
+      return;
+    if (i != length - 1)
+      arrayZ[i] = std::move (arrayZ[length - 1]);
     arrayZ[length - 1].~Type ();
     length--;
   }

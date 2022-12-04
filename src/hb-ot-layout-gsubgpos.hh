@@ -100,8 +100,8 @@ struct hb_closure_context_t :
 
   bool is_lookup_done (unsigned int lookup_index)
   {
-    if (done_lookups_glyph_count->in_error () ||
-        done_lookups_glyph_set->in_error ())
+    if (unlikely (done_lookups_glyph_count->in_error () ||
+		  done_lookups_glyph_set->in_error ()))
       return true;
 
     /* Have we visited this lookup with the current set of glyphs? */
@@ -535,7 +535,12 @@ struct hb_ot_apply_context_t :
     bool next (unsigned *unsafe_to = nullptr)
     {
       assert (num_items > 0);
-      while (idx + num_items < end)
+      /* The alternate condition below is faster at string boundaries,
+       * but produces subpar "unsafe-to-concat" values. */
+      signed stop = (signed) end - (signed) num_items;
+      if (c->buffer->flags & HB_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT)
+        stop = (signed) end - 1;
+      while ((signed) idx < stop)
       {
 	idx++;
 	hb_glyph_info_t &info = c->buffer->info[idx];
@@ -568,7 +573,12 @@ struct hb_ot_apply_context_t :
     bool prev (unsigned *unsafe_from = nullptr)
     {
       assert (num_items > 0);
-      while (idx > num_items - 1)
+      /* The alternate condition below is faster at string boundaries,
+       * but produces subpar "unsafe-to-concat" values. */
+      unsigned stop = num_items - 1;
+      if (c->buffer->flags & HB_BUFFER_FLAG_PRODUCE_UNSAFE_TO_CONCAT)
+        stop = 1 - 1;
+      while (idx > stop)
       {
 	idx--;
 	hb_glyph_info_t &info = c->buffer->out_info[idx];
@@ -992,8 +1002,8 @@ struct hb_accelerate_subtables_context_t :
 };
 
 
-typedef bool (*intersects_func_t) (const hb_set_t *glyphs, unsigned value, const void *data);
-typedef void (*intersected_glyphs_func_t) (const hb_set_t *glyphs, const void *data, unsigned value, hb_set_t *intersected_glyphs);
+typedef bool (*intersects_func_t) (const hb_set_t *glyphs, unsigned value, const void *data, void *cache);
+typedef void (*intersected_glyphs_func_t) (const hb_set_t *glyphs, const void *data, unsigned value, hb_set_t *intersected_glyphs, void *cache);
 typedef void (*collect_glyphs_func_t) (hb_set_t *glyphs, unsigned value, const void *data);
 typedef bool (*match_func_t) (hb_glyph_info_t &info, unsigned value, const void *data);
 
@@ -1016,16 +1026,25 @@ struct ChainContextApplyFuncs
 };
 
 
-static inline bool intersects_glyph (const hb_set_t *glyphs, unsigned value, const void *data HB_UNUSED)
+static inline bool intersects_glyph (const hb_set_t *glyphs, unsigned value, const void *data HB_UNUSED, void *cache HB_UNUSED)
 {
   return glyphs->has (value);
 }
-static inline bool intersects_class (const hb_set_t *glyphs, unsigned value, const void *data)
+static inline bool intersects_class (const hb_set_t *glyphs, unsigned value, const void *data, void *cache)
 {
   const ClassDef &class_def = *reinterpret_cast<const ClassDef *>(data);
-  return class_def.intersects_class (glyphs, value);
+  hb_map_t *map = (hb_map_t *) cache;
+
+  hb_codepoint_t *cached_v;
+  if (map->has (value, &cached_v))
+    return *cached_v;
+
+  bool v = class_def.intersects_class (glyphs, value);
+  map->set (value, v);
+
+  return v;
 }
-static inline bool intersects_coverage (const hb_set_t *glyphs, unsigned value, const void *data)
+static inline bool intersects_coverage (const hb_set_t *glyphs, unsigned value, const void *data, void *cache HB_UNUSED)
 {
   Offset16To<Coverage> coverage;
   coverage = value;
@@ -1033,17 +1052,36 @@ static inline bool intersects_coverage (const hb_set_t *glyphs, unsigned value, 
 }
 
 
-static inline void intersected_glyph (const hb_set_t *glyphs HB_UNUSED, const void *data, unsigned value, hb_set_t *intersected_glyphs)
+static inline void intersected_glyph (const hb_set_t *glyphs HB_UNUSED, const void *data, unsigned value, hb_set_t *intersected_glyphs, HB_UNUSED void *cache)
 {
   unsigned g = reinterpret_cast<const HBUINT16 *>(data)[value];
   intersected_glyphs->add (g);
 }
-static inline void intersected_class_glyphs (const hb_set_t *glyphs, const void *data, unsigned value, hb_set_t *intersected_glyphs)
+
+using intersected_class_cache_t = hb_hashmap_t<unsigned, hb_set_t>;
+
+static inline void intersected_class_glyphs (const hb_set_t *glyphs, const void *data, unsigned value, hb_set_t *intersected_glyphs, void *cache)
 {
   const ClassDef &class_def = *reinterpret_cast<const ClassDef *>(data);
-  class_def.intersected_class_glyphs (glyphs, value, intersected_glyphs);
+
+  intersected_class_cache_t *map = (intersected_class_cache_t *) cache;
+
+  hb_set_t *cached_v;
+  if (map->has (value, &cached_v))
+  {
+    intersected_glyphs->union_ (*cached_v);
+    return;
+  }
+
+  hb_set_t v;
+  class_def.intersected_class_glyphs (glyphs, value, &v);
+
+  intersected_glyphs->union_ (v);
+
+  map->set (value, std::move (v));
 }
-static inline void intersected_coverage_glyphs (const hb_set_t *glyphs, const void *data, unsigned value, hb_set_t *intersected_glyphs)
+
+static inline void intersected_coverage_glyphs (const hb_set_t *glyphs, const void *data, unsigned value, hb_set_t *intersected_glyphs, HB_UNUSED void *cache)
 {
   Offset16To<Coverage> coverage;
   coverage = value;
@@ -1056,10 +1094,11 @@ static inline bool array_is_subset_of (const hb_set_t *glyphs,
 				       unsigned int count,
 				       const HBUINT values[],
 				       intersects_func_t intersects_func,
-				       const void *intersects_data)
+				       const void *intersects_data,
+				       void *cache)
 {
   for (const auto &_ : + hb_iter (values, count))
-    if (!intersects_func (glyphs, _, intersects_data)) return false;
+    if (!intersects_func (glyphs, _, intersects_data, cache)) return false;
   return true;
 }
 
@@ -1496,7 +1535,8 @@ static void context_closure_recurse_lookups (hb_closure_context_t *c,
 					     unsigned value,
 					     ContextFormat context_format,
 					     const void *data,
-					     intersected_glyphs_func_t intersected_glyphs_func)
+					     intersected_glyphs_func_t intersected_glyphs_func,
+					     void *cache)
 {
   hb_set_t *covered_seq_indicies = hb_set_create ();
   for (unsigned int i = 0; i < lookupCount; i++)
@@ -1517,7 +1557,7 @@ static void context_closure_recurse_lookups (hb_closure_context_t *c,
           pos_glyphs.add (value);
           break;
         case ContextFormat::ClassBasedContext:
-          intersected_glyphs_func (&c->parent_active_glyphs (), data, value, &pos_glyphs);
+          intersected_glyphs_func (&c->parent_active_glyphs (), data, value, &pos_glyphs, cache);
           break;
         case ContextFormat::CoverageBasedContext:
           pos_glyphs.set (c->parent_active_glyphs ());
@@ -1534,7 +1574,7 @@ static void context_closure_recurse_lookups (hb_closure_context_t *c,
           input_value = input[seqIndex - 1];
         }
 
-        intersected_glyphs_func (c->glyphs, input_data, input_value, &pos_glyphs);
+        intersected_glyphs_func (c->glyphs, input_data, input_value, &pos_glyphs, cache);
       }
     }
 
@@ -1714,6 +1754,8 @@ struct ContextClosureLookupContext
   ContextClosureFuncs funcs;
   ContextFormat context_format;
   const void *intersects_data;
+  void *intersects_cache;
+  void *intersected_glyphs_cache;
 };
 
 struct ContextCollectGlyphsLookupContext
@@ -1736,7 +1778,9 @@ static inline bool context_intersects (const hb_set_t *glyphs,
 {
   return array_is_subset_of (glyphs,
 			     inputCount ? inputCount - 1 : 0, input,
-			     lookup_context.funcs.intersects, lookup_context.intersects_data);
+			     lookup_context.funcs.intersects,
+			     lookup_context.intersects_data,
+			     lookup_context.intersects_cache);
 }
 
 template <typename HBUINT>
@@ -1757,7 +1801,8 @@ static inline void context_closure_lookup (hb_closure_context_t *c,
 				     value,
 				     lookup_context.context_format,
 				     lookup_context.intersects_data,
-				     lookup_context.funcs.intersected_glyphs);
+				     lookup_context.funcs.intersected_glyphs,
+				     lookup_context.intersected_glyphs_cache);
 }
 
 template <typename HBUINT>
@@ -2112,7 +2157,7 @@ struct ContextFormat1_4
   void closure_lookups (hb_closure_lookups_context_t *c) const
   {
     struct ContextClosureLookupContext lookup_context = {
-      {intersects_glyph, intersected_glyph},
+      {intersects_glyph, nullptr},
       ContextFormat::SimpleContext,
       nullptr
     };
@@ -2224,10 +2269,12 @@ struct ContextFormat2_5
 
     const ClassDef &class_def = this+classDef;
 
+    hb_map_t cache;
     struct ContextClosureLookupContext lookup_context = {
-      {intersects_class, intersected_class_glyphs},
+      {intersects_class, nullptr},
       ContextFormat::ClassBasedContext,
-      &class_def
+      &class_def,
+      &cache
     };
 
     hb_set_t retained_coverage_glyphs;
@@ -2263,10 +2310,14 @@ struct ContextFormat2_5
 
     const ClassDef &class_def = this+classDef;
 
+    hb_map_t cache;
+    intersected_class_cache_t intersected_cache;
     struct ContextClosureLookupContext lookup_context = {
       {intersects_class, intersected_class_glyphs},
       ContextFormat::ClassBasedContext,
-      &class_def
+      &class_def,
+      &cache,
+      &intersected_cache
     };
 
     + hb_enumerate (ruleSet)
@@ -2290,10 +2341,12 @@ struct ContextFormat2_5
 
     const ClassDef &class_def = this+classDef;
 
+    hb_map_t cache;
     struct ContextClosureLookupContext lookup_context = {
-      {intersects_class, intersected_class_glyphs},
+      {intersects_class, nullptr},
       ContextFormat::ClassBasedContext,
-      &class_def
+      &class_def,
+      &cache
     };
 
     + hb_iter (ruleSet)
@@ -2411,6 +2464,7 @@ struct ContextFormat2_5
     const hb_map_t *lookup_map = c->table_tag == HB_OT_TAG_GSUB ? c->plan->gsub_lookups : c->plan->gpos_lookups;
     bool ret = true;
     int non_zero_index = -1, index = 0;
+    auto snapshot = c->serializer->snapshot();
     for (const auto& _ : + hb_enumerate (ruleSet)
 			 | hb_filter (klass_map, hb_first))
     {
@@ -2422,8 +2476,10 @@ struct ContextFormat2_5
       }
 
       if (coverage_glyph_classes.has (_.first) &&
-	  o->serialize_subset (c, _.second, this, lookup_map, &klass_map))
+	  o->serialize_subset (c, _.second, this, lookup_map, &klass_map)) {
 	non_zero_index = index;
+        snapshot = c->serializer->snapshot();
+      }
 
       index++;
     }
@@ -2437,6 +2493,7 @@ struct ContextFormat2_5
       out->ruleSet.pop ();
       index--;
     }
+    c->serializer->revert (snapshot);
 
     return_trace (bool (out->ruleSet));
   }
@@ -2473,7 +2530,7 @@ struct ContextFormat3
       return false;
 
     struct ContextClosureLookupContext lookup_context = {
-      {intersects_coverage, intersected_coverage_glyphs},
+      {intersects_coverage, nullptr},
       ContextFormat::CoverageBasedContext,
       this
     };
@@ -2659,6 +2716,8 @@ struct ChainContextClosureLookupContext
   ContextClosureFuncs funcs;
   ContextFormat context_format;
   const void *intersects_data[3];
+  void *intersects_cache[3];
+  void *intersected_glyphs_cache;
 };
 
 struct ChainContextCollectGlyphsLookupContext
@@ -2685,13 +2744,19 @@ static inline bool chain_context_intersects (const hb_set_t *glyphs,
 {
   return array_is_subset_of (glyphs,
 			     backtrackCount, backtrack,
-			     lookup_context.funcs.intersects, lookup_context.intersects_data[0])
+			     lookup_context.funcs.intersects,
+			     lookup_context.intersects_data[0],
+			     lookup_context.intersects_cache[0])
       && array_is_subset_of (glyphs,
 			     inputCount ? inputCount - 1 : 0, input,
-			     lookup_context.funcs.intersects, lookup_context.intersects_data[1])
+			     lookup_context.funcs.intersects,
+			     lookup_context.intersects_data[1],
+			     lookup_context.intersects_cache[1])
       && array_is_subset_of (glyphs,
 			     lookaheadCount, lookahead,
-			     lookup_context.funcs.intersects, lookup_context.intersects_data[2]);
+			     lookup_context.funcs.intersects,
+			     lookup_context.intersects_data[2],
+			     lookup_context.intersects_cache[2]);
 }
 
 template <typename HBUINT>
@@ -2718,7 +2783,8 @@ static inline void chain_context_closure_lookup (hb_closure_context_t *c,
 		     value,
 		     lookup_context.context_format,
 		     lookup_context.intersects_data[1],
-		     lookup_context.funcs.intersected_glyphs);
+		     lookup_context.funcs.intersected_glyphs,
+		     lookup_context.intersected_glyphs_cache);
 }
 
 template <typename HBUINT>
@@ -3173,7 +3239,7 @@ struct ChainContextFormat1_4
   void closure_lookups (hb_closure_lookups_context_t *c) const
   {
     struct ChainContextClosureLookupContext lookup_context = {
-      {intersects_glyph, intersected_glyph},
+      {intersects_glyph, nullptr},
       ContextFormat::SimpleContext,
       {nullptr, nullptr, nullptr}
     };
@@ -3285,12 +3351,14 @@ struct ChainContextFormat2_5
     const ClassDef &input_class_def = this+inputClassDef;
     const ClassDef &lookahead_class_def = this+lookaheadClassDef;
 
+    hb_map_t caches[3] = {};
     struct ChainContextClosureLookupContext lookup_context = {
-      {intersects_class, intersected_class_glyphs},
+      {intersects_class, nullptr},
       ContextFormat::ClassBasedContext,
       {&backtrack_class_def,
        &input_class_def,
-       &lookahead_class_def}
+       &lookahead_class_def},
+      {&caches[0], &caches[1], &caches[2]}
     };
 
     hb_set_t retained_coverage_glyphs;
@@ -3328,12 +3396,16 @@ struct ChainContextFormat2_5
     const ClassDef &input_class_def = this+inputClassDef;
     const ClassDef &lookahead_class_def = this+lookaheadClassDef;
 
+    hb_map_t caches[3] = {};
+    intersected_class_cache_t intersected_cache;
     struct ChainContextClosureLookupContext lookup_context = {
       {intersects_class, intersected_class_glyphs},
       ContextFormat::ClassBasedContext,
       {&backtrack_class_def,
        &input_class_def,
-       &lookahead_class_def}
+       &lookahead_class_def},
+      {&caches[0], &caches[1], &caches[2]},
+      &intersected_cache
     };
 
     + hb_enumerate (ruleSet)
@@ -3359,12 +3431,14 @@ struct ChainContextFormat2_5
     const ClassDef &input_class_def = this+inputClassDef;
     const ClassDef &lookahead_class_def = this+lookaheadClassDef;
 
+    hb_map_t caches[3] = {};
     struct ChainContextClosureLookupContext lookup_context = {
-      {intersects_class, intersected_class_glyphs},
+      {intersects_class, nullptr},
       ContextFormat::ClassBasedContext,
       {&backtrack_class_def,
        &input_class_def,
-       &lookahead_class_def}
+       &lookahead_class_def},
+      {&caches[0], &caches[1], &caches[2]}
     };
 
     + hb_iter (ruleSet)
@@ -3594,7 +3668,7 @@ struct ChainContextFormat3
 
     const auto &lookahead = StructAfter<decltype (lookaheadX)> (input);
     struct ChainContextClosureLookupContext lookup_context = {
-      {intersects_coverage, intersected_coverage_glyphs},
+      {intersects_coverage, nullptr},
       ContextFormat::CoverageBasedContext,
       {this, this, this}
     };
