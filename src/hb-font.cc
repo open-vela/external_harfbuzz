@@ -1440,7 +1440,8 @@ hb_font_draw_glyph (hb_font_t *font,
  *
  * If the font has color palettes (see hb_ot_color_has_palettes()),
  * then @palette_index selects the palette to use. If the font only
- * has one palette, this will be 0.
+ * has one palette, this will be 0.  Use %HB_PAINT_PALETTE_INDEX_CUSTOM
+ * for custom palette.
  *
  * Since: REPLACEME
  */
