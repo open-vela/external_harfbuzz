@@ -964,26 +964,19 @@ struct info_t
 
 	char name[64];
 	unsigned name_len = sizeof name;
-
 	hb_ot_name_get_utf8 (face, name_id,
 			     language,
 			     &name_len, name);
-        const char *type = "";
+
+	printf ("%u	", i);
 	if (flags)
 	{
 	  if (flags & HB_OT_COLOR_PALETTE_FLAG_USABLE_WITH_LIGHT_BACKGROUND)
-          {
-	    if (flags & HB_OT_COLOR_PALETTE_FLAG_USABLE_WITH_DARK_BACKGROUND)
-	      type = "Both";
-            else
-	      type = "Light";
-          }
-          else {
-	    type = "Dark";
-          }
+	    printf ("Light");
+	  if (flags & HB_OT_COLOR_PALETTE_FLAG_USABLE_WITH_DARK_BACKGROUND)
+	    printf ("Dark");
 	}
-
-	printf ("%u	%-*s   %s\n", i, (int)strlen ("Light"), type, name);
+	printf ("%s\n", name);
       }
     }
 

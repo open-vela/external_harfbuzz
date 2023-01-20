@@ -117,11 +117,10 @@ hb_paint_pop_group_nil (hb_paint_funcs_t *funcs, void *paint_data,
                         hb_paint_composite_mode_t mode,
                         void *user_data) {}
 
-static hb_bool_t
+static hb_color_t
 hb_paint_custom_palette_color_nil (hb_paint_funcs_t *funcs, void *paint_data,
                                    unsigned int color_index,
-                                   hb_color_t *color,
-                                   void *user_data) { return false; }
+                                   void *user_data) { return HB_COLOR(0,0,0,0); }
 
 static bool
 _hb_paint_funcs_set_preamble (hb_paint_funcs_t  *funcs,
@@ -684,20 +683,18 @@ hb_paint_pop_group (hb_paint_funcs_t *funcs, void *paint_data,
  * @funcs: paint functions
  * @paint_data: associated data passed by the caller
  * @color_index: color index
- * @color: (out): fetched color
  *
  * Gets the custom palette color for @color_index.
  *
- * Return value: `true` if found, `false` otherwise
+ * Return value: the custom color
  *
  * Since: REPLACEME
  */
-hb_bool_t
+hb_color_t
 hb_paint_custom_palette_color (hb_paint_funcs_t *funcs, void *paint_data,
-                               unsigned int color_index,
-                               hb_color_t *color)
+                               unsigned int color_index)
 {
-  return funcs->custom_palette_color (paint_data, color_index, color);
+  return funcs->custom_palette_color (paint_data, color_index);
 }
 
 #endif

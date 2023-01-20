@@ -97,13 +97,15 @@ public:
 
     if (color_index != 0xffff)
     {
-      if (!funcs->custom_palette_color (data, color_index, &color))
+      if (palette_index != HB_PAINT_PALETTE_INDEX_CUSTOM)
       {
 	unsigned int clen = 1;
 	hb_face_t *face = hb_font_get_face (font);
 
 	hb_ot_color_palette_get_colors (face, palette_index, color_index, &clen, &color);
       }
+      else
+	color = funcs->custom_palette_color (data, color_index);
 
       *is_foreground = false;
     }

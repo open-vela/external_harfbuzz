@@ -80,7 +80,7 @@ struct glyf
     _populate_subset_glyphs (c->plan, glyphs);
 
     hb_font_t *font = nullptr;
-    if (c->plan->normalized_coords)
+    if (!c->plan->pinned_at_default)
     {
       font = _create_font_for_instancing (c->plan);
       if (unlikely (!font)) return false;
@@ -108,8 +108,7 @@ struct glyf
 
     if (font)
     {
-      if (!c->plan->pinned_at_default)
-        _free_compiled_subset_glyphs (&glyphs);
+      _free_compiled_subset_glyphs (&glyphs);
       hb_font_destroy (font);
     }
 
@@ -195,7 +194,7 @@ struct glyf_accelerator_t
     contour_point_vector_t all_points;
 
     bool phantom_only = !consumer.is_consuming_contour_points ();
-    if (unlikely (!glyph_for_gid (gid).get_points (font, *this, all_points, nullptr, nullptr, nullptr, true, true, phantom_only)))
+    if (unlikely (!glyph_for_gid (gid).get_points (font, *this, all_points, nullptr, true, true, phantom_only)))
       return false;
 
     if (consumer.is_consuming_contour_points ())
@@ -407,7 +406,7 @@ glyf::_populate_subset_glyphs (const hb_subset_plan_t   *plan,
 
     if (unlikely (new_gid == 0 &&
                   !(plan->flags & HB_SUBSET_FLAGS_NOTDEF_OUTLINE)) &&
-                  !plan->normalized_coords)
+                  plan->pinned_at_default)
       subset_glyph.source_glyph = glyf_impl::Glyph ();
     else
     {
