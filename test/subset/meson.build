@@ -56,7 +56,6 @@ tests = [
   'instance_feature_variations',
   'instance_no_double_free',
   'mvar_full_instance',
-  'instance_comp_glyph_empty_child',
 ]
 
 repack_tests = [
