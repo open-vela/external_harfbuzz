@@ -114,9 +114,6 @@ glib_dep = dependency('glib-2.0', required: get_option('glib'))
 gobject_dep = dependency('gobject-2.0', required: get_option('gobject'))
 graphite2_dep = dependency('graphite2', required: get_option('graphite2'))
 graphite_dep = dependency('graphite2', required: get_option('graphite'))
-wasm_dep = cpp.find_library('iwasm', required: get_option('wasm'))
-# How to check whether iwasm was built, and hence requires, LLVM?
-#llvm_dep = cpp.find_library('LLVM-15', required: get_option('wasm'))
 
 if meson.version().version_compare('>=0.60.0')
   # pkg-config: icu-uc, cmake: ICU but with components
@@ -230,11 +227,6 @@ endif
 
 if chafa_dep.found()
   conf.set('HAVE_CHAFA', 1)
-endif
-
-if wasm_dep.found()
-  conf.set('HAVE_WASM', 1)
-  conf.set('HB_WASM_MODULE_DIR', '"'+get_option('prefix')+'/'+get_option('libdir')+'/harfbuzz/wasm"')
 endif
 
 if graphite2_dep.found() or graphite_dep.found()
