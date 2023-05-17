@@ -324,6 +324,19 @@ hb_glib_headers = files('hb-glib.h')
 hb_graphite2_sources = files('hb-graphite2.cc')
 hb_graphite2_headers = files('hb-graphite2.h')
 
+hb_wasm_sources = files(
+  'hb-wasm-api.cc',
+  'hb-wasm-api.hh',
+  'hb-wasm-api-blob.hh',
+  'hb-wasm-api-buffer.hh',
+  'hb-wasm-api-common.hh',
+  'hb-wasm-api-face.hh',
+  'hb-wasm-api-font.hh',
+  'hb-wasm-api-shape.hh',
+  'hb-wasm-shape.cc',
+)
+hb_wasm_headers = files()
+
 # System-dependent sources and headers
 
 hb_coretext_sources = files('hb-coretext.cc')
@@ -358,11 +371,9 @@ hb_subset_sources = files(
   'hb-subset-cff2.hh',
   'hb-subset-input.cc',
   'hb-subset-input.hh',
-  'hb-subset-instancer-solver.hh',
   'hb-subset-instancer-solver.cc',
   'hb-subset-plan.cc',
   'hb-subset-plan.hh',
-  'hb-subset-plan-member-list.hh',
   'hb-subset-repacker.cc',
   'graph/gsubgpos-context.cc',
   'graph/gsubgpos-context.hh',
@@ -418,7 +429,7 @@ custom_target('harfbuzz.cc',
   output: 'harfbuzz.cc',
   input: hb_base_sources + hb_glib_sources + hb_ft_sources +
          hb_graphite2_sources + hb_uniscribe_sources + hb_gdi_sources +
-         hb_directwrite_sources + hb_coretext_sources,
+         hb_directwrite_sources + hb_coretext_sources + hb_wasm_sources,
   command: [find_program('gen-harfbuzzcc.py'),
             '@OUTPUT@', meson.current_source_dir(), '@INPUT@'],
 )
@@ -461,6 +472,13 @@ if conf.get('HAVE_GRAPHITE2', 0) == 1
   harfbuzz_deps += [graphite2_dep, graphite_dep]
 endif
 
+if conf.get('HAVE_WASM', 0) == 1
+  hb_sources += hb_wasm_sources
+  hb_headers += hb_wasm_headers
+  harfbuzz_deps += wasm_dep
+  #harfbuzz_deps += llvm_dep
+endif
+
 if conf.get('HAVE_UNISCRIBE', 0) == 1
   hb_sources += hb_uniscribe_sources
   hb_headers += hb_uniscribe_headers
@@ -498,6 +516,7 @@ features = [
   'GRAPHITE',
   'ICU',
   'UNISCRIBE',
+  'WASM',
 ]
 
 hb_enabled_features = configuration_data()
@@ -701,7 +720,6 @@ if get_option('tests').enabled()
     'test-unicode-ranges': ['test-unicode-ranges.cc'],
     'test-vector': ['test-vector.cc', 'hb-static.cc'],
     'test-bimap': ['test-bimap.cc', 'hb-static.cc'],
-    'test-instancer-solver': ['test-subset-instancer-solver.cc', 'hb-subset-instancer-solver.cc', 'hb-static.cc'],
   }
   foreach name, source : compiled_tests
     if cpp.get_argument_syntax() == 'msvc' and source.contains('hb-static.cc')
@@ -912,7 +930,10 @@ if get_option('tests').enabled()
   env.set('HBHEADERS', ' '.join(HBHEADERS))
 
   if cpp.get_argument_syntax() != 'msvc' and not meson.is_cross_build() # ensure the local tools are usable
-    dist_check_script += ['check-libstdc++', 'check-static-inits', 'check-symbols']
+    dist_check_script += ['check-static-inits', 'check-symbols']
+    if get_option('wasm').disabled()
+      dist_check_script += ['check-libstdc++']
+    endif
   endif
 
   foreach name : dist_check_script

@@ -251,55 +251,36 @@ struct TupleVariationHeader
   { return StructAtOffset<TupleVariationHeader> (this, get_size (axis_count)); }
 
   float calculate_scalar (hb_array_t<int> coords, unsigned int coord_count,
-                          const hb_array_t<const F2DOT14> shared_tuples,
-			  const hb_vector_t<int> *shared_tuple_active_idx = nullptr) const
+                          const hb_array_t<const F2DOT14> shared_tuples) const
   {
-    const F2DOT14 *peak_tuple;
-
-    unsigned start_idx = 0;
-    unsigned end_idx = coord_count;
+    hb_array_t<const F2DOT14> peak_tuple;
 
     if (has_peak ())
-      peak_tuple = get_peak_tuple (coord_count).arrayZ;
+      peak_tuple = get_peak_tuple (coord_count);
     else
     {
       unsigned int index = get_index ();
-      if (unlikely ((index + 1) * coord_count > shared_tuples.length))
+      if (unlikely (index * coord_count >= shared_tuples.length))
         return 0.f;
-      peak_tuple = shared_tuples.sub_array (coord_count * index, coord_count).arrayZ;
-
-      if (shared_tuple_active_idx)
-      {
-	if (unlikely (index >= shared_tuple_active_idx->length))
-	  return 0.f;
-	int v = (*shared_tuple_active_idx).arrayZ[index];
-	if (v != -1)
-	{
-	  start_idx = v;
-	  end_idx = start_idx + 1;
-	}
-      }
+      peak_tuple = shared_tuples.sub_array (coord_count * index, coord_count);
     }
 
-    const F2DOT14 *start_tuple = nullptr;
-    const F2DOT14 *end_tuple = nullptr;
-    bool has_interm = has_intermediate ();
-    if (has_interm)
+    hb_array_t<const F2DOT14> start_tuple;
+    hb_array_t<const F2DOT14> end_tuple;
+    if (has_intermediate ())
     {
-      start_tuple = get_start_tuple (coord_count).arrayZ;
-      end_tuple = get_end_tuple (coord_count).arrayZ;
+      start_tuple = get_start_tuple (coord_count);
+      end_tuple = get_end_tuple (coord_count);
     }
 
     float scalar = 1.f;
-    for (unsigned int i = start_idx; i < end_idx; i++)
+    for (unsigned int i = 0; i < coord_count; i++)
     {
-      int peak = peak_tuple[i].to_int ();
-      if (!peak) continue;
-
       int v = coords[i];
-      if (v == peak) continue;
+      int peak = peak_tuple[i].to_int ();
+      if (!peak || v == peak) continue;
 
-      if (has_interm)
+      if (has_intermediate ())
       {
         int start = start_tuple[i].to_int ();
         int end = end_tuple[i].to_int ();
@@ -488,12 +469,12 @@ struct TupleVariationData
       if (unlikely (p + 1 > end)) return false;
       unsigned control = *p++;
       unsigned run_count = (control & POINT_RUN_COUNT_MASK) + 1;
-      unsigned stop = i + run_count;
-      if (unlikely (stop > count)) return false;
+      if (unlikely (i + run_count > count)) return false;
+      unsigned j;
       if (control & POINTS_ARE_WORDS)
       {
         if (unlikely (p + run_count * HBUINT16::static_size > end)) return false;
-        for (; i < stop; i++)
+        for (j = 0; j < run_count; j++, i++)
         {
           n += *(const HBUINT16 *)p;
           points.arrayZ[i] = n;
@@ -503,7 +484,7 @@ struct TupleVariationData
       else
       {
         if (unlikely (p + run_count > end)) return false;
-        for (; i < stop; i++)
+        for (j = 0; j < run_count; j++, i++)
         {
           n += *p++;
           points.arrayZ[i] = n;
@@ -531,17 +512,17 @@ struct TupleVariationData
       if (unlikely (p + 1 > end)) return false;
       unsigned control = *p++;
       unsigned run_count = (control & DELTA_RUN_COUNT_MASK) + 1;
-      unsigned stop = i + run_count;
-      if (unlikely (stop > count)) return false;
+      if (unlikely (i + run_count > count)) return false;
+      unsigned j;
       if (control & DELTAS_ARE_ZERO)
       {
-        for (; i < stop; i++)
+        for (j = 0; j < run_count; j++, i++)
           deltas.arrayZ[i] = 0;
       }
       else if (control & DELTAS_ARE_WORDS)
       {
         if (unlikely (p + run_count * HBUINT16::static_size > end)) return false;
-        for (; i < stop; i++)
+        for (j = 0; j < run_count; j++, i++)
         {
           deltas.arrayZ[i] = * (const HBINT16 *) p;
           p += HBUINT16::static_size;
@@ -550,7 +531,7 @@ struct TupleVariationData
       else
       {
         if (unlikely (p + run_count > end)) return false;
-        for (; i < stop; i++)
+        for (j = 0; j < run_count; j++, i++)
         {
           deltas.arrayZ[i] = * (const HBINT8 *) p++;
         }

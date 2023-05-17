@@ -61,16 +61,13 @@ static bool ClassDef_remap_and_serialize (
 struct hb_collect_feature_substitutes_with_var_context_t
 {
   const hb_map_t *axes_index_tag_map;
-  const hb_hashmap_t<hb_tag_t, Triple> *axes_location;
+  const hb_hashmap_t<hb_tag_t, int> *axes_location;
   hb_hashmap_t<unsigned, hb::shared_ptr<hb_set_t>> *record_cond_idx_map;
   hb_hashmap_t<unsigned, const Feature*> *feature_substitutes_map;
-  bool& insert_catch_all_feature_variation_record;
 
   // not stored in subset_plan
   hb_set_t *feature_indices;
   bool apply;
-  bool variation_applied;
-  bool universal;
   unsigned cur_record_idx;
   hb_hashmap_t<hb::shared_ptr<hb_map_t>, unsigned> *conditionset_map;
 };
@@ -192,7 +189,7 @@ struct hb_collect_variation_indices_context_t :
 
   hb_set_t *layout_variation_indices;
   hb_hashmap_t<unsigned, hb_pair_t<unsigned, int>> *varidx_delta_map;
-  hb_vector_t<int> *normalized_coords;
+  hb_font_t *font;
   const VariationStore *var_store;
   const hb_set_t *glyph_set;
   const hb_map_t *gpos_lookups;
@@ -200,14 +197,14 @@ struct hb_collect_variation_indices_context_t :
 
   hb_collect_variation_indices_context_t (hb_set_t *layout_variation_indices_,
 					  hb_hashmap_t<unsigned, hb_pair_t<unsigned, int>> *varidx_delta_map_,
-					  hb_vector_t<int> *normalized_coords_,
+					  hb_font_t *font_,
 					  const VariationStore *var_store_,
 					  const hb_set_t *glyph_set_,
 					  const hb_map_t *gpos_lookups_,
 					  float *store_cache_) :
 					layout_variation_indices (layout_variation_indices_),
 					varidx_delta_map (varidx_delta_map_),
-					normalized_coords (normalized_coords_),
+					font (font_),
 					var_store (var_store_),
 					glyph_set (glyph_set_),
 					gpos_lookups (gpos_lookups_),
@@ -1772,7 +1769,6 @@ struct ClassDefFormat2_4
       return_trace (true);
     }
 
-    unsigned unsorted = false;
     unsigned num_ranges = 1;
     hb_codepoint_t prev_gid = (*it).first;
     unsigned prev_klass = (*it).second;
@@ -1793,10 +1789,6 @@ struct ClassDefFormat2_4
       if (cur_gid != prev_gid + 1 ||
 	  cur_klass != prev_klass)
       {
-
-	if (unlikely (cur_gid < prev_gid))
-	  unsorted = true;
-
 	if (unlikely (!record)) break;
 	record->last = prev_gid;
 	num_ranges++;
@@ -1812,14 +1804,8 @@ struct ClassDefFormat2_4
       prev_gid = cur_gid;
     }
 
-    if (unlikely (c->in_error ())) return_trace (false);
-
     if (likely (record)) record->last = prev_gid;
     rangeRecord.len = num_ranges;
-
-    if (unlikely (unsorted))
-      rangeRecord.as_array ().qsort (RangeRecord<Types>::cmp_range);
-
     return_trace (true);
   }
 
@@ -2111,15 +2097,8 @@ struct ClassDef
 
 #ifndef HB_NO_BEYOND_64K
     if (glyph_max > 0xFFFFu)
-      u.format += 2;
-    if (unlikely (glyph_max > 0xFFFFFFu))
-#else
-    if (unlikely (glyph_max > 0xFFFFu))
+      format += 2;
 #endif
-    {
-      c->check_success (false, HB_SERIALIZE_ERROR_INT_OVERFLOW);
-      return_trace (false);
-    }
 
     u.format = format;
 
@@ -2293,20 +2272,19 @@ struct VarRegionAxis
 {
   float evaluate (int coord) const
   {
-    int peak = peakCoord.to_int ();
-    if (peak == 0 || coord == peak)
-      return 1.f;
-
-    int start = startCoord.to_int (), end = endCoord.to_int ();
+    int start = startCoord.to_int (), peak = peakCoord.to_int (), end = endCoord.to_int ();
 
     /* TODO Move these to sanitize(). */
     if (unlikely (start > peak || peak > end))
-      return 1.f;
+      return 1.;
     if (unlikely (start < 0 && end > 0 && peak != 0))
-      return 1.f;
+      return 1.;
+
+    if (peak == 0 || coord == peak)
+      return 1.;
 
     if (coord <= start || end <= coord)
-      return 0.f;
+      return 0.;
 
     /* Interpolate */
     if (coord < peak)
@@ -2523,9 +2501,10 @@ struct VarData
     {
       for (r = 0; r < src_word_count; r++)
       {
-        for (unsigned old_gid : inner_map.keys())
+	for (unsigned int i = 0; i < inner_map.get_next_value (); i++)
 	{
-	  int32_t delta = src->get_item_delta_fast (old_gid, r, src_delta_bytes, src_row_size);
+	  unsigned int old = inner_map.backward (i);
+	  int32_t delta = src->get_item_delta_fast (old, r, src_delta_bytes, src_row_size);
 	  if (delta < -65536 || 65535 < delta)
 	  {
 	    has_long = true;
@@ -2542,9 +2521,10 @@ struct VarData
       bool short_circuit = src_long_words == has_long && src_word_count <= r;
 
       delta_sz[r] = kZero;
-      for (unsigned old_gid : inner_map.keys())
+      for (unsigned int i = 0; i < inner_map.get_next_value (); i++)
       {
-	int32_t delta = src->get_item_delta_fast (old_gid, r, src_delta_bytes, src_row_size);
+	unsigned int old = inner_map.backward (i);
+	int32_t delta = src->get_item_delta_fast (old, r, src_delta_bytes, src_row_size);
 	if (delta < min_threshold || max_threshold < delta)
 	{
 	  delta_sz[r] = kWord;
@@ -2605,8 +2585,8 @@ struct VarData
     {
       unsigned int region = regionIndices.arrayZ[r];
       if (region_indices.has (region)) continue;
-      for (hb_codepoint_t old_gid : inner_map.keys())
-	if (get_item_delta_fast (old_gid, r, delta_bytes, row_size) != 0)
+      for (unsigned int i = 0; i < inner_map.get_next_value (); i++)
+	if (get_item_delta_fast (inner_map.backward (i), r, delta_bytes, row_size) != 0)
 	{
 	  region_indices.add (region);
 	  break;
@@ -2908,9 +2888,9 @@ struct VariationStore
 enum Cond_with_Var_flag_t
 {
   KEEP_COND_WITH_VAR = 0,
-  KEEP_RECORD_WITH_VAR = 1,
-  DROP_COND_WITH_VAR = 2,
-  DROP_RECORD_WITH_VAR = 3,
+  DROP_COND_WITH_VAR = 1,
+  DROP_RECORD_WITH_VAR = 2,
+  MEM_ERR_WITH_VAR = 3,
 };
 
 struct ConditionFormat1
@@ -2943,42 +2923,29 @@ struct ConditionFormat1
 
     hb_tag_t axis_tag = c->axes_index_tag_map->get (axisIndex);
 
-    Triple axis_range (-1.f, 0.f, 1.f);
-    if (c->axes_location->has (axis_tag))
-      axis_range = c->axes_location->get (axis_tag);
-
-    int axis_min_val = axis_range.minimum;
-    int axis_default_val = axis_range.middle;
-    int axis_max_val = axis_range.maximum;
-
-    int16_t filter_min_val = filterRangeMinValue.to_int ();
-    int16_t filter_max_val = filterRangeMaxValue.to_int ();
-
-    if (axis_default_val < filter_min_val ||
-        axis_default_val > filter_max_val)
-      c->apply = false;
-
-    //condition not met, drop the entire record
-    if (axis_min_val > filter_max_val || axis_max_val < filter_min_val ||
-        filter_min_val > filter_max_val)
-      return DROP_RECORD_WITH_VAR;
-
-    //condition met and axis pinned, drop the condition
-    if (c->axes_location->has (axis_tag) &&
-        c->axes_location->get (axis_tag).is_point ())
-      return DROP_COND_WITH_VAR;
-
-    if (filter_max_val != axis_max_val || filter_min_val != axis_min_val)
+    //axis not pinned, keep the condition
+    if (!c->axes_location->has (axis_tag))
     {
       // add axisIndex->value into the hashmap so we can check if the record is
       // unique with variations
-      hb_codepoint_t val = (filter_max_val << 16) + filter_min_val;
+      int16_t min_val = filterRangeMinValue.to_int ();
+      int16_t max_val = filterRangeMaxValue.to_int ();
+      hb_codepoint_t val = (max_val << 16) + min_val;
 
       condition_map->set (axisIndex, val);
       return KEEP_COND_WITH_VAR;
     }
 
-    return KEEP_RECORD_WITH_VAR;
+    //axis pinned, check if condition is met
+    //TODO: add check for axis Ranges
+    int v = c->axes_location->get (axis_tag);
+
+    //condition not met, drop the entire record
+    if (v < filterRangeMinValue.to_int () || v > filterRangeMaxValue.to_int ())
+      return DROP_RECORD_WITH_VAR;
+
+    //axis pinned and condition met, drop the condition
+    return DROP_COND_WITH_VAR;
   }
 
   bool evaluate (const int *coords, unsigned int coord_len) const
@@ -3017,7 +2984,7 @@ struct Condition
   {
     switch (u.format) {
     case 1: return u.format1.keep_with_variations (c, condition_map);
-    default: c->apply = false; return KEEP_COND_WITH_VAR;
+    default:return KEEP_COND_WITH_VAR;
     }
   }
 
@@ -3062,50 +3029,45 @@ struct ConditionSet
     return true;
   }
 
-  void keep_with_variations (hb_collect_feature_substitutes_with_var_context_t *c) const
+  Cond_with_Var_flag_t keep_with_variations (hb_collect_feature_substitutes_with_var_context_t *c) const
   {
     hb_map_t *condition_map = hb_map_create ();
-    if (unlikely (!condition_map)) return;
+    if (unlikely (!condition_map)) return MEM_ERR_WITH_VAR;
     hb::shared_ptr<hb_map_t> p {condition_map};
 
     hb_set_t *cond_set = hb_set_create ();
-    if (unlikely (!cond_set)) return;
+    if (unlikely (!cond_set)) return MEM_ERR_WITH_VAR;
     hb::shared_ptr<hb_set_t> s {cond_set};
 
-    c->apply = true;
-    bool should_keep = false;
     unsigned num_kept_cond = 0, cond_idx = 0;
     for (const auto& offset : conditions)
     {
       Cond_with_Var_flag_t ret = (this+offset).keep_with_variations (c, condition_map);
-      // condition is not met or condition out of range, drop the entire record
+      // one condition is not met, drop the entire record
       if (ret == DROP_RECORD_WITH_VAR)
-        return;
+        return DROP_RECORD_WITH_VAR;
 
+      // axis not pinned, keep this condition
       if (ret == KEEP_COND_WITH_VAR)
       {
-        should_keep = true;
         cond_set->add (cond_idx);
         num_kept_cond++;
       }
-
-      if (ret == KEEP_RECORD_WITH_VAR)
-        should_keep = true;
-
       cond_idx++;
     }
 
-    if (!should_keep) return;
+    // all conditions met
+    if (num_kept_cond == 0) return DROP_COND_WITH_VAR;
 
     //check if condition_set is unique with variations
     if (c->conditionset_map->has (p))
       //duplicate found, drop the entire record
-      return;
+      return DROP_RECORD_WITH_VAR;
 
     c->conditionset_map->set (p, 1);
     c->record_cond_idx_map->set (c->cur_record_idx, s);
-    if (should_keep && num_kept_cond == 0)
-      c->universal = true;
+
+    return KEEP_COND_WITH_VAR;
   }
 
   bool subset (hb_subset_context_t *c,
@@ -3310,11 +3272,12 @@ struct FeatureVariationRecord
   void collect_feature_substitutes_with_variations (hb_collect_feature_substitutes_with_var_context_t *c,
                                                     const void *base) const
   {
-    (base+conditions).keep_with_variations (c);
-    if (c->apply && !c->variation_applied)
+    // ret == 1, all conditions met
+    if ((base+conditions).keep_with_variations (c) == DROP_COND_WITH_VAR &&
+        c->apply)
     {
       (base+substitutions).collect_feature_substitutes_with_variations (c);
-      c->variation_applied = true; // set variations only once
+      c->apply = false; // set variations only once
     }
   }
 
@@ -3381,12 +3344,7 @@ struct FeatureVariations
     {
       c->cur_record_idx = i;
       varRecords[i].collect_feature_substitutes_with_variations (c, this);
-      if (c->universal)
-        break;
     }
-    if (c->variation_applied && !c->universal &&
-        !c->record_cond_idx_map->is_empty ())
-      c->insert_catch_all_feature_variation_record = true;
   }
 
   FeatureVariations* copy (hb_serialize_context_t *c) const
@@ -3590,9 +3548,8 @@ struct VariationDevice
   {
     c->layout_variation_indices->add (varIdx);
     int delta = 0;
-    if (c->normalized_coords && c->var_store)
-      delta = roundf (c->var_store->get_delta (varIdx, c->normalized_coords->arrayZ,
-                                               c->normalized_coords->length, c->store_cache));
+    if (c->font && c->var_store)
+      delta = roundf (get_delta (c->font, *c->var_store, c->store_cache));
 
     /* set new varidx to HB_OT_LAYOUT_NO_VARIATIONS_INDEX here, will remap
      * varidx later*/
