@@ -241,6 +241,8 @@ struct glyf_accelerator_t
     return true;
   }
 
+  public:
+
 #ifndef HB_NO_VAR
   struct points_aggregator_t
   {
@@ -304,7 +306,6 @@ struct glyf_accelerator_t
     contour_point_t *get_phantoms_sink () { return phantoms; }
   };
 
-  public:
   unsigned
   get_advance_with_var_unscaled (hb_font_t *font, hb_codepoint_t gid, bool is_vertical) const
   {
@@ -345,6 +346,15 @@ struct glyf_accelerator_t
     return true;
   }
 #endif
+
+  bool get_leading_bearing_without_var_unscaled (hb_codepoint_t gid, bool is_vertical, int *lsb) const
+  {
+    if (unlikely (gid >= num_glyphs)) return false;
+    if (is_vertical) return false; // TODO Humm, what to do here?
+
+    *lsb = glyph_for_gid (gid).get_header ()->xMin;
+    return true;
+  }
 
   public:
   bool get_extents (hb_font_t *font, hb_codepoint_t gid, hb_glyph_extents_t *extents) const
@@ -477,7 +487,7 @@ glyf::_create_font_for_instancing (const hb_subset_plan_t *plan) const
   {
     hb_variation_t var;
     var.tag = _.first;
-    var.value = _.second;
+    var.value = _.second.middle;
     vars.push (var);
   }
 

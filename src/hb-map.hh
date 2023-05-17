@@ -201,14 +201,25 @@ struct hb_hashmap_t
   }
 
   template <typename KK, typename VV>
-  bool set_with_hash (KK&& key, uint32_t hash, VV&& value, bool is_delete=false)
+  bool set_with_hash (KK&& key, uint32_t hash, VV&& value)
   {
     if (unlikely (!successful)) return false;
     if (unlikely ((occupancy + occupancy / 2) >= mask && !resize ())) return false;
-    item_t &item = item_for_hash (key, hash);
 
-    if (is_delete && !(item == key))
-      return true; /* Trying to delete non-existent key. */
+    hash &= 0x3FFFFFFF; // We only store lower 30bit of hash
+    unsigned int i = hash % prime;
+    unsigned step = 0;
+    while (items[i].is_used ())
+    {
+      if ((hb_is_same (K, hb_codepoint_t) || items[i].hash == hash) &&
+	  items[i] == key)
+        break;
+      if (items[i].is_tombstone ())
+        break;
+      i = (i + ++step) & mask;
+    }
+
+    item_t &item = items[i];
 
     if (item.is_used ())
     {
@@ -221,11 +232,10 @@ struct hb_hashmap_t
     item.value = std::forward<VV> (value);
     item.hash = hash;
     item.set_used (true);
-    item.set_tombstone (is_delete);
+    item.set_tombstone (false);
 
     occupancy++;
-    if (!is_delete)
-      population++;
+    population++;
 
     return true;
   }
@@ -237,33 +247,59 @@ struct hb_hashmap_t
 
   const V& get_with_hash (const K &key, uint32_t hash) const
   {
-    if (unlikely (!items)) return item_t::default_value ();
-    auto &item = item_for_hash (key, hash);
-    return item.is_real () && item == key ? item.value : item_t::default_value ();
+    auto *item = fetch_item (key, hb_hash (key));
+    if (item)
+      return item->value;
+    return item_t::default_value ();
   }
   const V& get (const K &key) const
   {
-    if (unlikely (!items)) return item_t::default_value ();
     return get_with_hash (key, hb_hash (key));
   }
 
-  void del (const K &key) { set_with_hash (key, hb_hash (key), item_t::default_value (), true); }
+  void del (const K &key)
+  {
+    auto *item = fetch_item (key, hb_hash (key));
+    if (item)
+    {
+      item->set_tombstone (true);
+      population--;
+    }
+  }
 
   /* Has interface. */
   const V& operator [] (K k) const { return get (k); }
   template <typename VV=V>
-  bool has (K key, VV **vp = nullptr) const
+  bool has (const K &key, VV **vp = nullptr) const
   {
-    if (unlikely (!items))
-      return false;
-    auto &item = item_for_hash (key, hb_hash (key));
-    if (item.is_real () && item == key)
+    auto *item = fetch_item (key, hb_hash (key));
+    if (item)
     {
-      if (vp) *vp = std::addressof (item.value);
+      if (vp) *vp = std::addressof (item->value);
       return true;
     }
-    else
-      return false;
+    return false;
+  }
+  item_t *fetch_item (const K &key, uint32_t hash) const
+  {
+    if (unlikely (!items)) return nullptr;
+
+    hash &= 0x3FFFFFFF; // We only store lower 30bit of hash
+    unsigned int i = hash % prime;
+    unsigned step = 0;
+    while (items[i].is_used ())
+    {
+      if ((hb_is_same (K, hb_codepoint_t) || items[i].hash == hash) &&
+	  items[i] == key)
+      {
+	if (items[i].is_real ())
+	  return &items[i];
+	else
+	  return nullptr;
+      }
+      i = (i + ++step) & mask;
+    }
+    return nullptr;
   }
   /* Projection. */
   V operator () (K k) const { return get (k); }
@@ -392,23 +428,6 @@ struct hb_hashmap_t
   { set (std::move (v.first), v.second); return *this; }
   hb_hashmap_t& operator << (const hb_pair_t<K&&, V&&>& v)
   { set (std::move (v.first), std::move (v.second)); return *this; }
-
-  item_t& item_for_hash (const K &key, uint32_t hash) const
-  {
-    hash &= 0x3FFFFFFF; // We only store lower 30bit of hash
-    unsigned int i = hash % prime;
-    unsigned int step = 0;
-    unsigned int tombstone = (unsigned) -1;
-    while (items[i].is_used ())
-    {
-      if (items[i].hash == hash && items[i] == key)
-	return items[i];
-      if (tombstone == (unsigned) -1 && items[i].is_tombstone ())
-	tombstone = i;
-      i = (i + ++step) & mask;
-    }
-    return items[tombstone == (unsigned) -1 ? i : tombstone];
-  }
 
   static unsigned int prime_for (unsigned int shift)
   {

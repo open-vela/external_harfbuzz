@@ -43,6 +43,7 @@ TESTS = \
 	tests/layout.duplicate_features.tests \
 	tests/layout.unsorted_featurelist.tests \
 	tests/layout.drop_feature.tests \
+	tests/no_layout_closure.tests \
         tests/sbix.tests \
 	tests/variable.tests \
 	tests/glyph_names.tests \
@@ -61,6 +62,7 @@ TESTS = \
 	tests/apply_cvar_delta.tests \
 	tests/collect_name_ids.tests \
 	tests/instantiate_colrv1.tests \
+	tests/instantiate_cff2_update_metrics.tests \
 	$(NULL)
 
 # TODO: re-enable once colrv1 subsetting is stabilized.
