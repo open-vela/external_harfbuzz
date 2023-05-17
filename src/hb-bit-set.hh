@@ -134,7 +134,11 @@ struct hb_bit_set_t
   {
     uint32_t h = 0;
     for (auto &map : page_map)
-      h = h * 31 + hb_hash (map.major) + hb_hash (pages[map.index]);
+    {
+      auto &page = pages.arrayZ[map.index];
+      if (unlikely (page.is_empty ())) continue;
+      h = h * 31 + hb_hash (map.major) + hb_hash (page);
+    }
     return h;
   }
 
@@ -402,7 +406,6 @@ struct hb_bit_set_t
       uint32_t spm = page_map[spi].major;
       uint32_t lpm = larger_set.page_map[lpi].major;
       auto sp = page_at (spi);
-      auto lp = larger_set.page_at (lpi);
 
       if (spm < lpm && !sp.is_empty ())
         return false;
@@ -410,6 +413,7 @@ struct hb_bit_set_t
       if (lpm < spm)
         continue;
 
+      auto lp = larger_set.page_at (lpi);
       if (!sp.is_subset (lp))
         return false;
 
@@ -623,6 +627,7 @@ struct hb_bit_set_t
         *codepoint = INVALID;
         return false;
       }
+      last_page_lookup = i;
     }
 
     const auto* pages_array = pages.arrayZ;
@@ -632,7 +637,6 @@ struct hb_bit_set_t
       if (pages_array[current.index].next (codepoint))
       {
         *codepoint += current.major * page_t::PAGE_BITS;
-        last_page_lookup = i;
         return true;
       }
       i++;
@@ -649,7 +653,6 @@ struct hb_bit_set_t
 	return true;
       }
     }
-    last_page_lookup = 0;
     *codepoint = INVALID;
     return false;
   }
@@ -921,7 +924,7 @@ struct hb_bit_set_t
       memmove (page_map.arrayZ + i + 1,
 	       page_map.arrayZ + i,
 	       (page_map.length - 1 - i) * page_map.item_size);
-      page_map[i] = map;
+      page_map.arrayZ[i] = map;
     }
 
     last_page_lookup = i;

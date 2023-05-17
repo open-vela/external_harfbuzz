@@ -34,6 +34,7 @@ tests = [
   'layout.duplicate_features',
   'layout.unsorted_featurelist',
   'layout.drop_feature',
+  'no_layout_closure',
   'cmap',
   'cmap14',
   'sbix',
@@ -63,6 +64,7 @@ tests = [
   'apply_cvar_delta',
   'collect_name_ids',
   'instantiate_colrv1',
+  'instantiate_cff2_update_metrics',
 ]
 
 repack_tests = [
