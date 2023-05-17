@@ -16,8 +16,6 @@ class Test:
 		import re
 		if self.subset == '*':
 			return self.subset[0]
-		elif self.subset == "no-unicodes":
-			return ""
 		elif re.match("^U\+", self.subset):
 			s = re.sub (r"U\+", "", self.subset)
 			return s
@@ -48,11 +46,6 @@ class Test:
 
 		if self.unicodes() == "*":
 			return "%s.%s.retain-all-codepoint%s%s" % (font_base_name_parts[0],
-				       profile_name,
-				       self.instance_name(),
-				       font_base_name_parts[1])
-		elif self.unicodes() == "":
-			return "%s.%s.no-unicodes%s%s" % (font_base_name_parts[0],
 				       profile_name,
 				       self.instance_name(),
 				       font_base_name_parts[1])

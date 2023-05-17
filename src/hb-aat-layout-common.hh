@@ -464,8 +464,7 @@ enum { DELETED_GLYPH = 0xFFFF };
 template <typename T>
 struct Entry
 {
-  // This does seem like it's ever called.
-  bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c, unsigned int count) const
   {
     TRACE_SANITIZE (this);
     /* Note, we don't recurse-sanitize data because we don't access it.
@@ -493,8 +492,7 @@ struct Entry
 template <>
 struct Entry<void>
 {
-  // This does seem like it's ever called.
-  bool sanitize (hb_sanitize_context_t *c) const
+  bool sanitize (hb_sanitize_context_t *c, unsigned int count /*XXX Unused?*/) const
   {
     TRACE_SANITIZE (this);
     return_trace (c->check_struct (this));

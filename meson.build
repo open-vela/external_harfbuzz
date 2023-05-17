@@ -1,6 +1,6 @@
 project('harfbuzz', 'c', 'cpp',
   meson_version: '>= 0.55.0',
-  version: '7.3.0',
+  version: '7.1.0',
   default_options: [
     'cpp_eh=none',          # Just to support msvc, we are passing -fno-exceptions also anyway
     'cpp_rtti=false',       # Just to support msvc, we are passing -fno-rtti also anyway
@@ -75,7 +75,6 @@ check_funcs = [
   ['isatty'],
   ['uselocale'],
   ['newlocale'],
-  ['sincosf'],
 ]
 
 m_dep = cpp.find_library('m', required: false)
@@ -115,6 +114,9 @@ glib_dep = dependency('glib-2.0', required: get_option('glib'))
 gobject_dep = dependency('gobject-2.0', required: get_option('gobject'))
 graphite2_dep = dependency('graphite2', required: get_option('graphite2'))
 graphite_dep = dependency('graphite2', required: get_option('graphite'))
+wasm_dep = cpp.find_library('iwasm', required: get_option('wasm'))
+# How to check whether iwasm was built, and hence requires, LLVM?
+#llvm_dep = cpp.find_library('LLVM-15', required: get_option('wasm'))
 
 if meson.version().version_compare('>=0.60.0')
   # pkg-config: icu-uc, cmake: ICU but with components
@@ -228,6 +230,11 @@ endif
 
 if chafa_dep.found()
   conf.set('HAVE_CHAFA', 1)
+endif
+
+if wasm_dep.found()
+  conf.set('HAVE_WASM', 1)
+  conf.set('HB_WASM_MODULE_DIR', '"'+get_option('prefix')+'/'+get_option('libdir')+'/harfbuzz/wasm"')
 endif
 
 if graphite2_dep.found() or graphite_dep.found()
@@ -374,10 +381,7 @@ foreach check : check_funcs
 endforeach
 
 subdir('src')
-
-if not get_option('utilities').disabled()
-  subdir('util')
-endif
+subdir('util')
 
 if not get_option('tests').disabled()
   subdir('test')
