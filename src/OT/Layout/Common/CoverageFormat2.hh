@@ -122,7 +122,7 @@ struct CoverageFormat2_4
   {
     if (rangeRecord.len > glyphs->get_population () * hb_bit_storage ((unsigned) rangeRecord.len) / 2)
     {
-      for (auto g : *glyphs)
+      for (hb_codepoint_t g = HB_SET_VALUE_INVALID; glyphs->next (&g);)
         if (get_coverage (g) != NOT_COVERED)
 	  return true;
       return false;

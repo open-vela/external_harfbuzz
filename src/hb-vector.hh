@@ -54,7 +54,7 @@ struct hb_vector_t
   hb_vector_t (const Iterable &o) : hb_vector_t ()
   {
     auto iter = hb_iter (o);
-    if (iter.is_random_access_iterator || iter.has_fast_len)
+    if (iter.is_random_access_iterator)
       alloc (hb_len (iter), true);
     hb_copy (iter, *this);
   }
@@ -86,7 +86,7 @@ struct hb_vector_t
   ~hb_vector_t () { fini (); }
 
   public:
-  int allocated = 0; /* < 0 means allocation failed. */
+  int allocated = 0; /* == -1 means allocation failed. */
   unsigned int length = 0;
   public:
   Type *arrayZ = nullptr;
@@ -116,7 +116,11 @@ struct hb_vector_t
   void reset ()
   {
     if (unlikely (in_error ()))
-      reset_error ();
+      /* Big Hack! We don't know the true allocated size before
+       * an allocation failure happened. But we know it was at
+       * least as big as length. Restore it to that and continue
+       * as if error did not happen. */
+      allocated = length;
     resize (0);
   }
 
@@ -241,16 +245,6 @@ struct hb_vector_t
   }
 
   bool in_error () const { return allocated < 0; }
-  void set_error ()
-  {
-    assert (allocated >= 0);
-    allocated = -allocated - 1;
-  }
-  void reset_error ()
-  {
-    assert (allocated < 0);
-    allocated = -(allocated + 1);
-  }
 
   template <typename T = Type,
 	    hb_enable_if (hb_is_trivially_copy_assignable(T))>
@@ -351,14 +345,11 @@ struct hb_vector_t
   void
   shrink_vector (unsigned size)
   {
-    if (std::is_trivially_destructible<Type>::value)
-      length = size;
-    else
-      while ((unsigned) length > size)
-      {
-	arrayZ[(unsigned) length - 1].~Type ();
-	length--;
-      }
+    while ((unsigned) length > size)
+    {
+      arrayZ[(unsigned) length - 1].~Type ();
+      length--;
+    }
   }
 
   void
@@ -405,7 +396,7 @@ struct hb_vector_t
 
     if (unlikely (overflows))
     {
-      set_error ();
+      allocated = -1;
       return false;
     }
 
@@ -416,7 +407,7 @@ struct hb_vector_t
       if (new_allocated <= (unsigned) allocated)
         return true; // shrinking failed; it's okay; happens in our fuzzer
 
-      set_error ();
+      allocated = -1;
       return false;
     }
 

@@ -287,7 +287,8 @@ struct OS2
     /* This block doesn't show up in profiles. If it ever did,
      * we can rewrite it to iterate over OS/2 ranges and use
      * set iteration to check if the range matches. */
-    for (auto cp : *codepoints)
+    for (hb_codepoint_t cp = HB_SET_VALUE_INVALID;
+	 codepoints->next (&cp);)
     {
       unsigned int bit = _hb_ot_os2_get_unicode_range_bit (cp);
       if (bit < 128)
