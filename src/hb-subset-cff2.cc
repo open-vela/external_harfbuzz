@@ -524,7 +524,8 @@ static bool _serialize_cff2 (hb_serialize_context_t *c,
 
       if (plan.subset_localsubrs[i].length > 0)
       {
-	auto *dest = c->push <CFF2Subrs> ();
+	auto *dest = c->start_embed <CFF2Subrs> ();
+	c->push ();
 	if (likely (dest->serialize (c, plan.subset_localsubrs[i])))
 	  subrs_link = c->pop_pack (false);
 	else
@@ -533,7 +534,8 @@ static bool _serialize_cff2 (hb_serialize_context_t *c,
 	  return false;
 	}
       }
-      auto *pd = c->push<PrivateDict> ();
+      auto *pd = c->start_embed<PrivateDict> ();
+      c->push ();
       cff2_private_dict_op_serializer_t privSzr (plan.desubroutinize, plan.drop_hints, plan.pinned,
 						 acc.varStore, normalized_coords);
       if (likely (pd->serialize (c, acc.privateDicts[i], privSzr, subrs_link)))
@@ -586,7 +588,8 @@ static bool _serialize_cff2 (hb_serialize_context_t *c,
 
   /* FDArray (FD Index) */
   {
-    auto *fda = c->push<CFF2FDArray> ();
+    c->push ();
+    auto *fda = c->start_embed<CFF2FDArray> ();
     cff_font_dict_op_serializer_t fontSzr;
     auto it =
     + hb_zip (+ hb_iter (acc.fontDicts)
@@ -594,11 +597,7 @@ static bool _serialize_cff2 (hb_serialize_context_t *c,
 		{ return plan.fdmap.has (&_ - &acc.fontDicts[0]); }),
 	      hb_iter (private_dict_infos))
     ;
-    if (unlikely (!fda->serialize (c, it, fontSzr)))
-    {
-      c->pop_discard ();
-      return false;
-    }
+    if (unlikely (!fda->serialize (c, it, fontSzr))) return false;
     plan.info.fd_array_link = c->pop_pack (false);
   }
 
@@ -606,12 +605,9 @@ static bool _serialize_cff2 (hb_serialize_context_t *c,
   if (acc.varStore != &Null (CFF2VariationStore) &&
       !plan.pinned)
   {
-    auto *dest = c->push<CFF2VariationStore> ();
-    if (unlikely (!dest->serialize (c, acc.varStore)))
-    {
-      c->pop_discard ();
-      return false;
-    }
+    c->push ();
+    auto *dest = c->start_embed<CFF2VariationStore> ();
+    if (unlikely (!dest->serialize (c, acc.varStore))) return false;
     plan.info.var_store_link = c->pop_pack (false);
   }
 

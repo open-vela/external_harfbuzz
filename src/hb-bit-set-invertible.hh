@@ -345,7 +345,6 @@ struct hb_bit_set_invertible_t
   struct iter_t : hb_iter_with_fallback_t<iter_t, hb_codepoint_t>
   {
     static constexpr bool is_sorted_iterator = true;
-    static constexpr bool has_fast_len = true;
     iter_t (const hb_bit_set_invertible_t &s_ = Null (hb_bit_set_invertible_t),
 	    bool init = true) : s (&s_), v (INVALID), l(0)
     {
@@ -364,7 +363,7 @@ struct hb_bit_set_invertible_t
     unsigned __len__ () const { return l; }
     iter_t end () const { return iter_t (*s, false); }
     bool operator != (const iter_t& o) const
-    { return v != o.v || s != o.s; }
+    { return s != o.s || v != o.v; }
 
     protected:
     const hb_bit_set_invertible_t *s;

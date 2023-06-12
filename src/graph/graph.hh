@@ -359,6 +359,7 @@ struct graph_t
 
   ~graph_t ()
   {
+    vertices_.fini ();
     for (char* b : buffers)
       hb_free (b);
   }
@@ -732,7 +733,8 @@ struct graph_t
     remap_obj_indices (index_map, parents.iter (), true);
 
     // Update roots set with new indices as needed.
-    for (auto next : roots)
+    uint32_t next = HB_SET_VALUE_INVALID;
+    while (roots.next (&next))
     {
       const uint32_t *v;
       if (index_map.has (next, &v))
