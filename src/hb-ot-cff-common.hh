@@ -74,16 +74,15 @@ struct CFFIndex
     if (unlikely (!ret)) return_trace (false);
     for (const auto &_ : +it)
     {
-      auto it = hb_iter (_);
-      unsigned len = hb_len (it);
+      unsigned len = _.length;
       if (len <= 1)
       {
         if (!len)
 	  continue;
-	*ret++ = *it.arrayZ;
+	*ret++ = *_.arrayZ;
 	continue;
       }
-      hb_memcpy (ret, it.arrayZ, len);
+      hb_memcpy (ret, _.arrayZ, len);
       ret += len;
     }
     return_trace (true);
@@ -110,6 +109,7 @@ struct CFFIndex
 
     /* serialize indices */
     unsigned int offset = 1;
+#ifdef HB_OPTIMIZE_SIZE
     unsigned int i = 0;
     for (unsigned _ : +it)
     {
@@ -117,6 +117,57 @@ struct CFFIndex
       offset += _;
     }
     set_offset_at (i, offset);
+#else
+    switch (off_size)
+    {
+      case 1:
+      {
+	HBUINT8 *p = (HBUINT8 *) offsets;
+	for (unsigned _ : +it)
+	{
+	  *p++ = offset;
+	  offset += _;
+	}
+	*p = offset;
+      }
+      break;
+      case 2:
+      {
+	HBUINT16 *p = (HBUINT16 *) offsets;
+	for (unsigned _ : +it)
+	{
+	  *p++ = offset;
+	  offset += _;
+	}
+	*p = offset;
+      }
+      break;
+      case 3:
+      {
+	HBUINT24 *p = (HBUINT24 *) offsets;
+	for (unsigned _ : +it)
+	{
+	  *p++ = offset;
+	  offset += _;
+	}
+	*p = offset;
+      }
+      break;
+      case 4:
+      {
+	HBUINT32 *p = (HBUINT32 *) offsets;
+	for (unsigned _ : +it)
+	{
+	  *p++ = offset;
+	  offset += _;
+	}
+	*p = offset;
+      }
+      break;
+      default:
+      break;
+    }
+#endif
 
     return_trace (total);
   }
@@ -126,7 +177,9 @@ struct CFFIndex
   static unsigned total_size (const Iterable &iterable)
   {
     auto it = + hb_iter (iterable) | hb_map (hb_iter) | hb_map (hb_len);
-    if (!it) return 0;
+    // The following should return min_size IMO. But that crashes a few
+    // tests. I have not investigated why.
+    if (!it) return 0; //min_size;
 
     unsigned total = + it | hb_reduce (hb_add, 0);
     unsigned off_size = (hb_bit_storage (total + 1) + 7) / 8;
@@ -139,13 +192,13 @@ struct CFFIndex
     assert (index <= count);
 
     unsigned int size = offSize;
-    const HBUINT8 *p = offsets + size * index;
+    const HBUINT8 *p = offsets;
     switch (size)
     {
-      case 1: * (HBUINT8  *) p = offset; break;
-      case 2: * (HBUINT16 *) p = offset; break;
-      case 3: * (HBUINT24 *) p = offset; break;
-      case 4: * (HBUINT32 *) p = offset; break;
+      case 1: ((HBUINT8  *) p)[index] = offset; break;
+      case 2: ((HBUINT16 *) p)[index] = offset; break;
+      case 3: ((HBUINT24 *) p)[index] = offset; break;
+      case 4: ((HBUINT32 *) p)[index] = offset; break;
       default: return;
     }
   }
@@ -156,13 +209,13 @@ struct CFFIndex
     assert (index <= count);
 
     unsigned int size = offSize;
-    const HBUINT8 *p = offsets + size * index;
+    const HBUINT8 *p = offsets;
     switch (size)
     {
-      case 1: return * (HBUINT8  *) p;
-      case 2: return * (HBUINT16 *) p;
-      case 3: return * (HBUINT24 *) p;
-      case 4: return * (HBUINT32 *) p;
+      case 1: return ((HBUINT8  *) p)[index];
+      case 2: return ((HBUINT16 *) p)[index];
+      case 3: return ((HBUINT24 *) p)[index];
+      case 4: return ((HBUINT32 *) p)[index];
       default: return 0;
     }
   }
@@ -308,6 +361,9 @@ struct FDArray : CFFIndex<COUNT>
     | hb_sink (sizes)
     ;
     c->pop_pack (false);
+
+    /* It just happens that the above is packed right after the header below.
+     * Such a hack. */
 
     /* serialize INDEX header */
     return_trace (CFFIndex<COUNT>::serialize_header (c, hb_iter (sizes)));
