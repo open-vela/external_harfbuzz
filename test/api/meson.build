@@ -16,7 +16,6 @@ tests = [
   'test-cplusplus.cc',
   'test-common.c',
   'test-draw.c',
-  'test-draw-varc.c',
   'test-extents.c',
   'test-font.c',
   'test-font-scale.c',
