@@ -4674,14 +4674,13 @@ struct GSUBGPOS
   { return get_feature_list ().find_index (tag, index); }
 
   bool find_variations_index (const int *coords, unsigned int num_coords,
-			      unsigned int *index,
-			      ItemVarStoreInstancer *instancer) const
+			      unsigned int *index) const
   {
 #ifdef HB_NO_VAR
     *index = FeatureVariations::NOT_FOUND_INDEX;
     return false;
 #endif
-    return get_feature_variations ().find_index (coords, num_coords, index, instancer);
+    return get_feature_variations ().find_index (coords, num_coords, index);
   }
   const Feature& get_feature_variation (unsigned int feature_index,
 					unsigned int variations_index) const
