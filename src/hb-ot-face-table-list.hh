@@ -103,7 +103,7 @@ HB_OT_CORE_TABLE (OT, VARC)
 
 /* Legacy kern. */
 #ifndef HB_NO_OT_KERN
-HB_OT_CORE_TABLE (OT, kern)
+HB_OT_ACCELERATOR (OT, kern)
 #endif
 
 /* OpenType shaping. */
@@ -123,7 +123,7 @@ HB_OT_CORE_TABLE (OT, BASE)
 #ifndef HB_NO_AAT
 HB_OT_ACCELERATOR (AAT, morx)
 HB_OT_ACCELERATOR (AAT, mort)
-HB_OT_TABLE (AAT, kerx)
+HB_OT_ACCELERATOR (AAT, kerx)
 HB_OT_TABLE (AAT, ankr)
 HB_OT_TABLE (AAT, trak)
 HB_OT_TABLE (AAT, ltag)
