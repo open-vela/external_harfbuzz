@@ -16,9 +16,9 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@9bb56186c3b09b4f86b1c65136769dd318469633 # v4.1.2
+      uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4.1.6
     - name: Setup Ccache
-      uses: hendrikmuhs/ccache-action@faf867a11c028c0b483fb2ae72b6fc8f7d842714 # v1.2.12
+      uses: hendrikmuhs/ccache-action@c92f40bee50034e84c763e33b317c77adaa81c92 # v1.2.13
       with:
         key: ${{ github.job }}-${{ runner.os }}-${{ runner.arch }}
     - name: Install Dependencies
@@ -38,6 +38,10 @@ jobs:
           pkg-config \
           python3 \
           python3-setuptools
+    - name: Setup Python
+      uses: actions/setup-python@82c7e631bb3cdc910f68e0081d67478d79c6982d # v5.1.0
+      with:
+        python-version: '3.x'
     - name: Install Python Dependencies
       run: sudo pip3 install -r .ci/requirements.txt --require-hashes
     - name: Setup Meson
@@ -66,6 +70,6 @@ jobs:
     - name: Generate Coverage
       run: ninja -Cbuild coverage-xml
     - name: Upload Coverage
-      uses: codecov/codecov-action@84508663e988701840491b86de86b666e8a86bed # v4.3.0
+      uses: codecov/codecov-action@6d798873df2b1b8e5846dba6fb86631229fbcb17 # v4.4.0
       with:
         file: build/meson-logs/coverage.xml
