@@ -1854,7 +1854,7 @@ hb_font_create (hb_face_t *face)
 {
   hb_font_t *font = _hb_font_create (face);
 
-#ifndef HB_NO_OT_FONT
+#if !defined(HB_NO_OT_FONT) && !defined(CONFIG_LIB_FREETYPE) 
   /* Install our in-house, very lightweight, funcs. */
   hb_ot_font_set_funcs (font);
 #endif
